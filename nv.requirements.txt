@@ -1,0 +1,2 @@
+flask imagezmq face_recognition docopt centroid-tracker
+
