@@ -1,7 +1,5 @@
 #!/bin/bash
 
-
-
 stop() {
 	sudo kill $(pgrep python3)
 	exit
@@ -14,9 +12,9 @@ fi
 if [ "$func" = "kill" ]; then
 	stop;
 elif [ "$func" = "run" ]; then
-	exec_dir="$HOME/.local/lib/python3.6/site-packages/nv/main"
-	process_exec="$exec_dir/process.py"
-	capture_exec="$exec_dir/serve.py"
+	exec_dir="$HOME/.local/lib/python3.6/site-packages/nv/main/"
+	process_exec="$exec_dir/process_test.py"
+	capture_exec="$exec_dir/capture.py"
 	pypid=$(pgrep python3)
 	if [ -z "$pypid" ]; then
 		echo "Capture not running. Starting..."
@@ -27,4 +25,3 @@ elif [ "$func" = "run" ]; then
 		python3 "$process_exec" $cam& disown
 	done
 fi
-

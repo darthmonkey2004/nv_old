@@ -22,12 +22,13 @@ userdir = os.path.expanduser('~')
 EXEC_DIR = (userdir + os.path.sep + ".local" + os.path.sep + "lib" + os.path.sep + "python3.6" + os.path.sep + "site-packages" + os.path.sep + "nv" + os.path.sep + "main")
 DATA_DIR=(userdir + os.path.sep + "Nicole" + os.path.sep + "NicVision")
 os.chdir(EXEC_DIR)
-from nv.main import capture as capture
+from nv.main import serve as serve
 from nv.main import correlation_tracker as correlation_tracker
 from correlation_tracker import CorrelationTracker as CT
 #TODO: fix serve and trainer to run with if __name__ == "__main__" block to allow not-execution import
 #from nv.main import serve as serve
 from nv.main import trackable_object as trackable_object
+from nv.main.capture import VideoCapture
 #from nv.main import trainer as trainer
 def drawBox(img, data):
 	drawn = img#initialize drawn return image with passed image
@@ -216,7 +217,19 @@ def readConf(conf='None'):
 			pickle.dump(cameras, f)
 	return cameras
 
-
+def addToConf(src, index=None):
+	cameras = readConf()
+	if index == None:
+		index = len(cameras)
+		index = index + 1
+	cameras[index] = src
+	writeConf(cameras)
+	os.chdir(EXEC_DIR)
+	import subprocess
+	com = ("bash", EXEC_DIR + sep + "nv.makeHtml.sh")
+	result = subprocess.run(com)
+	print (result)
+	return result
 
 sep = os.path.sep
 userdir = os.path.expanduser('~')
@@ -230,13 +243,13 @@ PROTOTXT = (DATA_DIR + os.path.sep + 'MobileNetSSD_deploy.prototxt')
 MODEL = (DATA_DIR + os.path.sep + 'MobileNetSSD_deploy.caffemodel')
 OBJECTDETECTOR_CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow", "diningtable", "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
 OBJECTDETECTOR_TARGETS = set(["dog", "person", "car", "truck"])
-OBJECTDETECTOR_CONFIDENCE = 0.79# found 0.45 to be a good number during night, 0.8 during day
+OBJECTDETECTOR_CONFIDENCE = 0.79# found 0.49 to be a good number during night, 0.79 during day
 TRACKER_MAX_AGE = 30
 TRAINPATH = (DATA_DIR + os.path.sep + "training_data")
 LOCALIP = "127.0.0.1"
 WEB_PORT = 5000
 IMGSRV_PORT = 5555
-SKIP_FRAMES = 30
+SKIP_FRAMES = 100
 IOFILES = {}
 ACTIVE_PROCESS_LIST = CAMERAS
 ALL_FACE_ENCODINGS = readDbFile(KNOWN_FACES_DB)
