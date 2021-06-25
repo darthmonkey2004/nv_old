@@ -16,6 +16,13 @@ def resizeImg(img, scale):
 
 
 def train(path = None):
+	try:
+		with open(nv.KNOWN_FACES_DB, 'rb') as f:
+			all_face_encodings = pickle.load(f)
+			print ("Encodings dat file loaded!")
+		f.close()
+	except:
+		all_face_encodings = {}
 	if path == None:
 		path = (nv.DATA_DIR + nv.sep + "training_data")
 	os.chdir(path)
@@ -24,11 +31,22 @@ def train(path = None):
 	pos = 0
 	files = os.listdir(path)
 	filtered_list = glob.glob('*.jpg')
+	names_ct = {}
+	namect = 0
+	names = {}
 	for file in filtered_list:
 		pos = pos + 1
 		img = face_recognition.load_image_file(file)
 		img = resizeImg(img, 50)
 		name = file.split('.')[0]
+		if name not in names:
+			namect=1
+		else:
+			namect = names_ct[name]
+			namect = namect + 1
+		names_ct[name] = namect
+		names[name] = name
+		name = (name + "_" + str(namect))
 		ct = len(filtered_list)
 		print ("Name: " + name + "(" + str(pos) + "/" + str(ct) + ")")
 		try:
@@ -36,8 +54,8 @@ def train(path = None):
 		except:
 			continue
 
-
-	with open(trainpath, 'wb') as f:
+	
+	with open(nv.KNOWN_FACES_DB, 'wb') as f:
 		pickle.dump(all_face_encodings, f)
 		print ("Encodings dat file created!")
 	f.close()
@@ -52,14 +70,4 @@ def recognize(img):
 	return results
 
 if __name__ == "__main__":
-	if not os.path.exists(nv.TRAINPATH):
-		print ("Needs trained first. Running trainer...")
-		train()
-		print ("Training complete!")	
-		exit()
-	else:
-		try:
-			img = sys.argv[1]
-		except:
-			print ("Usage: trainer.py '/path/to/file.jpg'")
-			exit()
+	train()

@@ -22,14 +22,31 @@ userdir = os.path.expanduser('~')
 EXEC_DIR = (userdir + os.path.sep + ".local" + os.path.sep + "lib" + os.path.sep + "python3.6" + os.path.sep + "site-packages" + os.path.sep + "nv" + os.path.sep + "main")
 DATA_DIR=(userdir + os.path.sep + "Nicole" + os.path.sep + "NicVision")
 os.chdir(EXEC_DIR)
+from nv.main import servodriver as servo
+from nv.main import ipptz as ipptz
 from nv.main import serve as serve
 from nv.main import correlation_tracker as correlation_tracker
-from correlation_tracker import CorrelationTracker as CT
-#TODO: fix serve and trainer to run with if __name__ == "__main__" block to allow not-execution import
-#from nv.main import serve as serve
 from nv.main import trackable_object as trackable_object
 from nv.main.capture import VideoCapture
-#from nv.main import trainer as trainer
+from nv.main import trainer as trainer
+
+def getDaylight():
+	import time
+	from suntime import Sun
+	import datetime
+	latitude = 38.21
+	longitutde = -98.21
+	sun = Sun(latitude, longitutde)
+	sunrise = sun.get_sunrise_time()
+	sunrise = sunrise.timestamp()
+	sunset = sun.get_sunset_time()
+	sunset = sunset.timestamp()
+	now = time.time()
+	if now > sunrise < sunset:
+		return "Day"
+	else:
+		return "Night"
+
 def drawBox(img, data):
 	drawn = img#initialize drawn return image with passed image
 	#so if this draw function fails, it will still return a current image
@@ -75,56 +92,9 @@ def drawBox(img, data):
 	del draw#delete drawing layer, as per PIL documentation.
 	return drawn
 
-#helper function for shell usage with nv-record
-#TODO: Fix me, frame rate not correct, plays slow. More GD Homework....=( (variable bitrate?)
-def record(src="rtsp://192.168.2.10/mpeg4cif", outfile="nv.capture.avi"):
-	cap = cv2.VideoCapture(src)
-	frame_width = int(cap.get(3))
-	frame_height = int(cap.get(4))
-	out = cv2.VideoWriter(outfile, cv2.VideoWriter_fourcc('M','J','P','G'), 10, (frame_width,frame_height))
-	while True:
-		ret, img = cap.read()
-		if ret:
-			out.write(img)
-			title = ("Recording (" + str(src) + ")...")
-			cv2.imshow('Recording', img)
-			if cv2.waitKey(1) & 0xFF == ord('q'):
-				break
-	out.release()
-	cap.release()
-	exit()
-
-#TODO: this doesn't work yet, but the draw code in capture.py does. Adapt this to that, and re-point the resource to the nv package
-#def drawBox(img, draw_data):
-#	text, box = draw_data
-#	rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-#	pil_image = Image.fromarray(rgb_img)
-#	# Create a Pillow ImageDraw Draw instance to draw with
-#	draw = ImageDraw.Draw(pil_image)
-#	if len(box) == 4:
-#		#print (left, top, right, bottom)
-#		draw.rectangle(box, outline=GREEN)#draw box on image
-#	else:
-#		for rect in box:#iterate through boxes if more than one provided
-#		#print (left, top, right, bottom)
-#			draw.rectangle(rect, outline=GREEN)#draw box on image#draw box on image
-#	rgb_img = np.array(pil_image)
-#	del draw
-#	img = cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR)
-#	return img
-
-def resize(img):
-	width = int(img.shape[1])
-	height = int(img.shape[0])
-	if width > 640 and height > 480:
-		dim = (640, 480)
-		img = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
-	return img
-
-
 def writeConfFromShell(conftxt, conf='None'):
 	if conf == 'None':
-		conf = getConfPath()
+		conf = CONF
 	cameras = {}
 	with open(conftxt) as f:
 		for line in f:
@@ -135,10 +105,64 @@ def writeConfFromShell(conftxt, conf='None'):
 	out=("configuration file updated successfully!")
 	print (out)
 
-def readDbFile(datfile):
-	with open(datfile, 'rb') as f:
-		all_face_encodings = pickle.load(f)
-	return (all_face_encodings)
+def initDatabase(ret='all', datfile=None):
+	ALL_FACE_ENCODINGS = {}
+	KNOWN_ENCODINGS = []
+	all_names = []
+	KNOWN_NAMES = []
+	KNOWN_USER_IDS = []
+	if datfile == None:
+		datfile = KNOWN_FACES_DB
+	try:
+		with open(datfile, 'rb') as f:
+			ALL_FACE_ENCODINGS = pickle.load(f)
+			all_names = list(ALL_FACE_ENCODINGS.keys())
+			KNOWN_ENCODINGS = np.array(list(ALL_FACE_ENCODINGS.values()))
+		f.close()
+		pos = 0
+		for testname in all_names:
+			testname = testname.split('_')[0]
+			if testname not in KNOWN_NAMES:
+				pos = pos + 1
+				KNOWN_NAMES.append(testname)
+				KNOWN_USER_IDS.append(pos)
+	except:
+		print ("Boobies frighten me.")
+
+	if ret == 'all':
+		out = (KNOWN_NAMES, KNOWN_USER_IDS)
+	elif ret == 'ids':
+		out = KNOWN_USER_IDS
+	elif ret == 'names':
+		out = KNOWN_USER_NAMES
+	elif ret == 'init':
+		out = (ALL_FACE_ENCODINGS, KNOWN_NAMES, KNOWN_ENCODINGS, KNOWN_USER_IDS)
+	return out
+
+def updateDbFile(name, face_encoding, datfile=None):
+	try:
+		ALL_FACE_ENCODINGS = {}
+		if datfile == None:
+			datfile = KNOWN_FACES_DB
+		ALL_FACE_ENCODINGS = readDbFile()
+		ALL_FACE_ENCODINGS[name] = face_encoding
+		with open(datfile, 'wb') as f:
+			pickle.dump(ALL_FACE_ENCODINGS, f)
+		f.close()
+		all_names = list(ALL_FACE_ENCODINGS.keys())
+		KNOWN_ENCODINGS = np.array(list(ALL_FACE_ENCODINGS.values()))
+		KNOWN_NAMES = []
+		KNOWN_USER_IDS = []
+		pos = 0
+		for testname in all_names:
+			testname = testname.split('_')[0]
+			if testname not in KNOWN_NAMES:
+				pos = pos + 1
+				KNOWN_NAMES.append(testname)
+				KNOWN_USER_IDS.append(pos)
+		return True
+	except:
+		return False
 
 def readConfToShell(conf='None'):
 	if conf == 'None':
@@ -188,8 +212,7 @@ def testCam(src):#A helper function for scan.networkCameras.sh
 	return state
 
 def mkIoFiles():
-	cameras = readConf()
-	for camera_id in cameras.keys():
+	for camera_id in CAMERAS.keys():
 		name = (str(camera_id) + ".io")
 		is_tracking = False
 		boxes = []
@@ -205,31 +228,174 @@ def writeIoFile(camera_id, outData):
 			pickle.dump(outData, f)
 			f.close()
 
-def readConf(conf='None'):
-	if conf == 'None':
-		conf = CONF
-	try:
-		with open(conf, 'rb') as f:
-			cameras = pickle.load(f)
-	except:
-		cameras = {}
-		with open(conf, 'wb') as f:
-			pickle.dump(cameras, f)
-	return cameras
+def readConf():
+	CAMERAS = {}
+	FEEDS = {}
+	PTZS = {}
+	with open(CONF, 'rb') as f:
+		data = pickle.load(f)
+		CAMERAS = data['srcs']
+		FEEDS = data['feeds']
+		PTZS = data['ptzs']	
+		return CAMERAS, FEEDS, PTZS
 
-def addToConf(src, index=None):
-	cameras = readConf()
-	if index == None:
-		index = len(cameras)
-		index = index + 1
-	cameras[index] = src
-	writeConf(cameras)
-	os.chdir(EXEC_DIR)
-	import subprocess
-	com = ("bash", EXEC_DIR + sep + "nv.makeHtml.sh")
-	result = subprocess.run(com)
-	print (result)
-	return result
+def addToConf(src, feed, ptz):
+	data={}
+	cam_id = len(nv.CAMERAS)
+	cam_id = cam_id + 1
+	CAMERAS[cam_id] = src
+	FEEDS[cam_id] = feed
+	PTZS[cam_id] = ptz
+	data['srcs'] = CAMERAS
+	data['feeds'] = FEEDS
+	data['ptzs'] = PTZS
+	writeConf(data)
+
+
+def resizeImg(img, scale):
+	#print ((img.shape[1]), (img.shape[0]))
+	width = int(img.shape[1] * scale / 100)
+	height = int(img.shape[0] * scale / 100)
+	dsize = (width, height)
+	retimg = cv2.resize(img, dsize)
+	#print ((retimg.shape[1]), (retimg.shape[0]))
+	return retimg
+
+def recognize(imgpath):
+	import face_recognition
+	img = face_recognition.load_image_file(imgpath)
+	img = resizeImg(img, 50)
+	name = None
+	matches = []
+	face_location = None
+	if img is not None:
+		test_face = face_recognition.face_encodings(img)
+		test_location = face_recognition.face_locations(img)
+		if len(test_face) == 0:
+			out = None
+			return out
+		else:
+			name = "Unidentified Face"
+			result = face_recognition.compare_faces(KNOWN_ENCODINGS, test_face[0])
+			if True in result:
+				i = result.index(True)
+				name = KNOWN_NAMES[i]
+				splitter = '_'
+				name = name.split(splitter)[0]
+		if test_location is not None:
+			out = (imgpath, name, test_location[0])
+			return (out)
+		else:
+			return None
+
+def recognize_raw(img):
+	import face_recognition
+	name = None
+	matches = []
+	face_location = None
+	if img is not None:
+		test_face = face_recognition.face_encodings(img)
+		if len(test_face) == 0:
+			out = (None, None)
+			return out
+		else:
+			name = "Unidentified Face"
+			face_location = face_recognition.face_locations(img)
+			result = face_recognition.compare_faces(KNOWN_ENCODINGS, test_face[0])
+			if True in result:
+				i = result.index(True)
+				names = list(ALL_FACE_ENCODINGS.keys())
+				name = names[i]
+				splitter = '_'
+				name = name.split(splitter)[0]
+			return (name, face_location[0])
+
+def recognize_dir(path = None):
+	logfile = 'testimages.log'
+	import glob
+	output = {}
+	if path == None:
+		path = (nv.DATA_DIR + nv.sep + "training_data")
+	os.chdir(path)
+	files = os.listdir(path)
+	filtered_list = glob.glob('*.jpg')
+	pos = 0
+	ct = len(filtered_list)
+	for file in filtered_list:
+		pos = pos + 1
+		try:
+			matches = recognize(file)
+		except:
+			matches = None
+		if matches is not None:
+			filename, result, location = matches
+			output[pos] = (filename, result)
+			cur = (pos, ct)
+			print (cur, result)
+			with open(logfile, 'wb') as f:
+				pickle.dump(output, f)
+			f.close()
+	print ("Done!")
+	exit()
+
+def face_detect(imgpath):
+	img = cv2.imread(imgpath)
+	gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)# convert to grayscale
+	faces = nv.FD_CASCADE.detectMultiScale(gray, 1.1, 4)#detect faces
+	for face in faces:
+		x, y, w, h = face
+		cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)#draw rectangle over face on image.
+	return faces
+
+def readDbFile(datfile=None):
+	ALL_FACE_ENCODINGS = {}
+	if datfile == None:
+		datfile = KNOWN_FACES_DB
+	with open(datfile, 'rb') as f:
+		ALL_FACE_ENCODINGS = pickle.load(f)
+	f.close()
+	return (ALL_FACE_ENCODINGS)
+
+def updateNames():
+	pos = 0
+	names = []
+	ids = []
+	all_names = list(ALL_FACE_ENCODINGS.keys())
+	for testname in all_names:
+		testname = testname.split('_')[0]
+		if testname not in names:
+			pos = pos + 1
+			names.append(testname)
+			ids.append(pos)
+def rmuser(name):
+	ALL_FACE_ENCODINGS = readDbFile(KNOWN_FACES_DB)
+	all_names = list(ALL_FACE_ENCODINGS.keys())
+	users = {}
+	ids = {}
+	for testname in all_names:
+		test = testname.split('_')[0]
+		if name == test:
+			del ALL_FACE_ENCODINGS[testname]
+	with open(KNOWN_FACES_DB, 'wb') as f:
+		pickle.dump(ALL_FACE_ENCODINGS, f)
+	f.close()
+
+		
+		
+def face_detect_raw(img):
+	gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)# convert to grayscale
+	faces = FD_CASCADE.detectMultiScale(gray, 1.1, 4)#detect faces
+	if len(faces) == 0:
+		faces = None
+	else:
+		for face in faces:
+			x, y, w, h = face
+			cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)#draw rectangle over face on image.
+	return faces
+
+
+		
+
 
 sep = os.path.sep
 userdir = os.path.expanduser('~')
@@ -237,37 +403,47 @@ EXEC_DIR = (userdir + os.path.sep + ".local" + os.path.sep + "lib" + os.path.sep
 DATA_DIR=(userdir + os.path.sep + "Nicole" + os.path.sep + "NicVision")
 KNOWN_FACES_DB=(DATA_DIR + "/nv_known_faces.dat")
 CONF=(DATA_DIR + "/nv.conf")
+MOTION_CONF=(DATA_DIR + "/nv.motion_feeds.conf")
 CAP_EXEC = (EXEC_DIR + os.path.sep + "capture.py")
-CAMERAS = readConf(CONF)
+CAMERAS, FEEDS, PTZ = readConf()
 PROTOTXT = (DATA_DIR + os.path.sep + 'MobileNetSSD_deploy.prototxt')
 MODEL = (DATA_DIR + os.path.sep + 'MobileNetSSD_deploy.caffemodel')
 OBJECTDETECTOR_CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow", "diningtable", "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
-OBJECTDETECTOR_TARGETS = set(["dog", "person", "car", "truck"])
-OBJECTDETECTOR_CONFIDENCE = 0.79# found 0.49 to be a good number during night, 0.79 during day
-TRACKER_MAX_AGE = 30
+OBJECTDETECTOR_TARGETS = set(["cat", "motorbike", "dog", "person", "car", "bus", "aeroplane", "horse", "truck"])
+tod = getDaylight()
+if tod == "Day":
+	OBJECTDETECTOR_CONFIDENCE = 0.69# found 0.49 to be a good number during night, 0.79 during day
+if tod == "Night":
+	OBJECTDETECTOR_CONFIDENCE = 0.49# found 0.49 to be a good number during night, 0.79 during day
+TRACKER_MAX_AGE = 60
 TRAINPATH = (DATA_DIR + os.path.sep + "training_data")
+UNKNOWN_FACES_PATH = (DATA_DIR + os.path.sep + "unknown_faces")
 LOCALIP = "127.0.0.1"
 WEB_PORT = 5000
 IMGSRV_PORT = 5555
 SKIP_FRAMES = 100
 IOFILES = {}
 ACTIVE_PROCESS_LIST = CAMERAS
-ALL_FACE_ENCODINGS = readDbFile(KNOWN_FACES_DB)
-KNOWN_NAMES = list(ALL_FACE_ENCODINGS.keys())
-KNOWN_ENCODINGS = np.array(list(ALL_FACE_ENCODINGS.values()))
+try:
+	ALL_FACE_ENCODINGS, KNOWN_NAMES, KNOWN_ENCODINGS, KNOWN_USER_IDS = initDatabase('init')
+except:
+	ALL_FACE_ENCODINGS = {}
+	KNOWN_NAMES = []
+	KNOWN_USER_IDS = []
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 FONT_SCALE = 1
 RED = (0, 0, 255)
 GREEN = (0, 255, 0)
 BLUE = (255, 0 ,0)
-FACE_CASCADE = (DATA_DIR + os.path.sep + "lbpcascade_frontalface.xml")
 RESIZE = 400
 METHODS = ['face_recognition', 'object_detection']
-haarfile = (DATA_DIR + os.path.sep + "haarcascade_frontalface_default.xml")
-FACEDETECT_CASCADE = cv2.CascadeClassifier(haarfile)
+HAARFILE = (DATA_DIR + os.path.sep + "haarcascade_frontalface_default.xml")
+SMILEFILE = (DATA_DIR + os.path.sep + "haarcascade_smile.xml")
+LBOFILE = (DATA_DIR + os.path.sep + "lbpcascade_frontalface.xml")
+FD_CASCADE = cv2.CascadeClassifier(HAARFILE)
 VIEWER_BORDER_WIDTH = 2
 VIEWER_WIDTH = "100%"
 VIEWER_HEIGHT = "100%"
-for camera_id in CAMERAS:
+for camera_id in FEEDS:
 	IOFILES[camera_id] = (DATA_DIR + os.path.sep + str(camera_id) + ".io")
 #from nv.main import process as process

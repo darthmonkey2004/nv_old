@@ -6,6 +6,7 @@ from trackable_object import TrackableObject
 from imutils.video import VideoStream
 from imutils.video import FPS
 import numpy as np
+import face_recognition
 import imutils
 import time
 import dlib
@@ -18,10 +19,13 @@ def ensure_dir(directory):
         	os.makedirs(directory)
 
 def writeOutImg(name, frame):
+	try:
+		name, confidence = (name.split('_')[0]), (name.split('_')[1])
+	except:
+		name, confidence = (name, "N/A")
 	path = (nv.DATA_DIR + nv.sep + "objects" + nv.sep + name)
 	ensure_dir(path)
 	count = (len(os.listdir(path)) + 1)
-	print (count, " person seen!")
 	fname = (path + nv.sep + str(count) + ".jpg")
 	cv2.imwrite(fname, frame)
 
@@ -53,7 +57,15 @@ def recognize(camera_id, img):
 def face_detect(img):
 	gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)# convert to grayscale
 	faces = nv.FACEDETECT_CASCADE.detectMultiScale(gray, 1.1, 4)#detect faces
-	if faces.any():
+	hasface = False
+	if type(faces) == list:
+		if faces.any():
+			hasface = True
+	elif type(faces) == tuple:
+		if faces:
+			hasface = True
+
+	if hasface == True:
 		faces_ct = len(faces)
 		name = ("Detected face (" + str(faces_ct) + ")")
 		ts = time.time()#get timestamp to test for stale processes.
@@ -61,7 +73,10 @@ def face_detect(img):
 			cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)#draw rectangle over face on image.
 			box = (x, y, (x+w), (y+h))
 			return (name, box)
-	else:
+
+
+
+
 		return (None, None)
 
 try:
@@ -89,7 +104,7 @@ while True:
 		continue
 	if totalFrames % nv.SKIP_FRAMES == 0:
 		#rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-		frame = imutils.resize(frame, width=400)
+		#frame = imutils.resize(frame, width=400)
 		(H, W) = frame.shape[:2]
 		rects = []
 		status = "Detecting"
@@ -120,31 +135,46 @@ while True:
 					tracker = CT(box, frame)
 					rects.append((l, t, r, b))
 					#objects = ct.update(rects)
-					name = name + "_" + str(confidence)
-					trackers[object_id] = (name, tracker)
-					out = (name, box)
+					text = name + "_" + str(confidence)
+					trackers[object_id] = (text, tracker)
+					out = (text, box)
 					if name == "car" and camera_id == 1:
 						cars = cars + 1
-						if cars > 0:
-							writeOutImg(name, frame)
+						if cars > 1:
+							writeOutImg(text, frame)
 					elif name == "car" and camera_id != 1:
-						writeOutImg(name, frame)
+						writeOutImg(text, frame)
 					elif name == "person":
-						print ("Detecting face...")
-						name, face = face_detect(frame)
-						if face is not None:
-							print ("Face found!")
-							out = (name, face)
-							recname, recface = recognize(camera_id, frame)
-							if recname is not None:
-								name = recname
-								print ("Name: " + name)
-								out = (name, recface)
-							else:
-								name = "Unidentified Person"
+						facedata = face_recognition.face_locations(frame)
+						if facedata != []:
+							for face in facedata:
+								out = (name, face)
+								recname, recface = recognize(camera_id, frame)
+								if recname is not None:
+									text = recname
+									out = (text, recface)
+								else:
+									text = "Unidentified Person"
+									out = (text, face)
 						output.append(out)
-						writeOutImg(name, frame)
-						
+						trackers[object_id] = (text, tracker)
+						writeOutImg(text, frame)
+		elif "face_recognition" in nv.METHODS:
+			facedata = face_recognition.face_locations(frame)
+			if facedata != []:
+				for face in facedata:
+					out = (name, face)
+					recname, recface = recognize(camera_id, frame)
+					if recname is not None:
+						text = recname
+						out = (text, recface)
+					else:
+						text = "Unidentified Person"
+						out = (text, face)
+				output.append(out)
+				trackers[object_id] = (text, tracker)
+				writeOutImg(text, frame)
+			
 	else:
 		output = []
 		status = "Tracking"
@@ -175,4 +205,5 @@ while True:
 		cv2.imwrite()
 	if output != []:
 		nv.writeIoFile(camera_id, output)
+
 

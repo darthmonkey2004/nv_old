@@ -1,2 +1,1 @@
-flask imagezmq face_recognition docopt centroid-tracker
-
+flask imagezmq face_recognition docopt centroid-tracker numpy scipy imutils

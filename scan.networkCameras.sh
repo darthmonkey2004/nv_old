@@ -165,47 +165,45 @@ scanIP() {
 					fi
 				done
 			fi
-			for u in "${urls[@]}"; do
-				pos=$(( pos + 1 ))
-				echo "$pos. $u"
-			done
-			read -p "Enter a number of the resolution/url to use: " num
-			#adjust entered number to account for arrays starting at 0
-			num=$(( num - 1 ))
-			addurl="${urls[$num]}"
-			src=$(echo "$addurl" | cut -d '(' -f 1)
-			if [ -z "$src" ]; then
-				echo "Error: No url parsed. (addurl='$addurl')"
-				exit 1
+			ct="${#urls[@]}"
+			echo "Good urls: $ct"
+			if [ "$ct" == 0 ]; then
+				echo "Couldn't find good urls. Skipping..."
+				skip=1
+			else
+				skip=0
+			fi
+			if [ "$skip" == "1" ]; then
+				for u in "${urls[@]}"; do
+					pos=$(( pos + 1 ))
+					echo "$pos. $u"
+				done
+				read -p "Enter a number of the resolution/url to use: " num
+				#adjust entered number to account for arrays starting at 0
+				num=$(( num - 1 ))
+				addurl="${urls[$num]}"
+				src=$(echo "$addurl" | cut -d '(' -f 1)
+				if [ -z "$src" ]; then
+					echo "Error: No url parsed. (addurl='$addurl'). Skipping..."
+				fi
 			fi
 		fi
 		ary=()
-		cams=$(python3 -c "import cams; cameras = cams.readConfToShell('$conf'); print (cameras)" | grep -v "None")
-		echo "CAMS: '$cams'"
-		echo "Current configured camera sources: '$cams'"
-		if [ -n "$cams" ]; then
-			readarray ary <<< "$cams"
-			ary+=($src)
-		elif [ -z "$cams" ]; then
-			ary+=($src)
-		fi
-		if [ -f "$conftxt" ]; then
-			rm $conftxt
-			touch "$conftxt"
+		info=$(python3 -c "import nv; ct = str(len(nv.CAMERAS)); cams = str(nv.CAMERAS); print (len + ',' + cams)")
+		ct=$(echo "$info" | cut -d ',' -f 1)
+		echo "CAMS: '$info'"
+		echo "Current configured camera sources: '$ct'"
 		fi
 		pos=0
-		echo "${#ary[@]} current cameras in list!"
+		echo "$ct current cameras in list!"
 		for url in "${ary[@]}"; do
 			pos=$(( pos + 1 ))
 			url=$(echo "$url" | cut -d $'\n' -f 1)
 			echo "Adding url '$url' to camera config file..."
-			echo "$pos $url" >> "$conftxt"
+			python3 -c "import nv; cams = nv.CAMERAS; ct = len(cams) + 1; cams[ct] = '$url'; nv.writeConf(cams); print(nv.readConfToShell())"
 		done
-		cat "$conftxt"
-		result=$(python3 -c "import cams; cams.writeConfFromShell('$conftxt')")
+
 		echo "$result"
-	fi
-	rm $conftxt
 }
 
 scanNetwork() {
@@ -240,7 +238,7 @@ cams_autoAdd() {
 	echo "Scan complete. Found total of "${#hosts[@]}" online hosts. Beginning service discovery..."
 	for host in "${hosts[@]}"; do
 		skip=0
-		cams=$(python3 -c "import cams; cameras = cams.readConfToShell('$conf'); print (cameras)" | grep -v "None")
+		cams=$(python3 -c "import nv; print (nv.CAMERAS)")
 		exists=$(echo "$cams" | grep "$host")
 		if [ -n "$exists" ]; then
 			test=$(echo "$exists" | cut -d '/' -f 3)
@@ -263,14 +261,13 @@ cams_autoAdd() {
 		runServer;
 		exit 0
 	else
-		echo "Ok. To run server, rerun this script with './nv runServer'"
 		echo "Exiting..."
 		exit 0
 	fi
 }
 
 runServer() {
-	python3 cams.py& disown
+	python3 nv.py& disown
 	sleep 5
 	xdg-open "http://$localip:5000/"
 }
@@ -279,13 +276,7 @@ if [ -z "$jpeginfo" ]; then
 	sudo apt-get install -y jpeginfo
 fi
 dir=$(pwd)
-conf="$dir/cams.conf"
-#conf="$HOME/.local/lib/python3.6/site-packages/NicVision/cams.conf"
-conftxt="$dir/cams.conf.txt"
-#conftxt="$HOME/.local/lib/python3.6/site-packages/NicVision/cams.conf.txt"
-if [ ! -f "$conftxt" ]; then
-	touch "$conftxt"
-fi
+conf=$(python3 -c "import nv; print (nv.CONF)")
 if [ ! -f "$conf" ]; then
 	echo "Camera configuration file not found. Creating..."
 	touch "$conf"
