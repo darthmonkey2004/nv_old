@@ -55,3 +55,7 @@ docs/_build/
 
 # PyBuilder
 target/
+main/*.io
+main/nv.db
+main/templates/index.html
+nv.conf
