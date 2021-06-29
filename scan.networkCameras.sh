@@ -173,7 +173,7 @@ scanIP() {
 			else
 				skip=0
 			fi
-			if [ "$skip" == "1" ]; then
+			if [ "$skip" == "0" ]; then
 				for u in "${urls[@]}"; do
 					pos=$(( pos + 1 ))
 					echo "$pos. $u"
@@ -189,9 +189,8 @@ scanIP() {
 			fi
 		fi
 		ary=()
-		info=$(python3 -c "import nv; ct = str(len(nv.CAMERAS)); cams = str(nv.CAMERAS); print (len + ',' + cams)")
-		ct=$(echo "$info" | cut -d ',' -f 1)
-		echo "CAMS: '$info'"
+		IFS=$'\n' readarray data <<< $(python3 -c "import nv; print (nv.readConfToShell())")
+		ct="${#data[@]}"
 		echo "Current configured camera sources: '$ct'"
 		fi
 		pos=0

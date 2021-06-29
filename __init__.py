@@ -164,15 +164,12 @@ def updateDbFile(name, face_encoding, datfile=None):
 	except:
 		return False
 
-def readConfToShell(conf='None'):
-	if conf == 'None':
-		conf = CONF
-	try:
-		cameras = readConf(conf)
-		for cam in cameras:
-			print (cameras[cam])
-	except:
-			print ("")
+def readConfToShell():
+	cameras, feeds, ptzs = readConf()
+	for cam_id in cameras:
+		print (cameras[cam_id])
+	#except:
+	#		print ("")
 
 def writeConf(cameras, conf='None'):
 	if conf == 'None':
@@ -232,12 +229,14 @@ def readConf():
 	CAMERAS = {}
 	FEEDS = {}
 	PTZS = {}
+	data = {}
 	with open(CONF, 'rb') as f:
-		data = pickle.load(f)
-		CAMERAS = data['srcs']
-		FEEDS = data['feeds']
-		PTZS = data['ptzs']	
-		return CAMERAS, FEEDS, PTZS
+		CAMERAS, FEEDS, PTZS = pickle.load(f)
+		f.close()
+	#CAMERAS = data['srcs']
+	#FEEDS = data['feeds']
+	#PTZS = data['ptzs']
+	return CAMERAS, FEEDS, PTZS
 
 def addToConf(src, feed, ptz):
 	data={}
@@ -405,23 +404,25 @@ KNOWN_FACES_DB=(DATA_DIR + "/nv_known_faces.dat")
 CONF=(DATA_DIR + "/nv.conf")
 MOTION_CONF=(DATA_DIR + "/nv.motion_feeds.conf")
 CAP_EXEC = (EXEC_DIR + os.path.sep + "capture.py")
-CAMERAS, FEEDS, PTZ = readConf()
+CAMERAS, FEEDS, PTZS = readConf()
 PROTOTXT = (DATA_DIR + os.path.sep + 'MobileNetSSD_deploy.prototxt')
 MODEL = (DATA_DIR + os.path.sep + 'MobileNetSSD_deploy.caffemodel')
+SQLDB = (EXEC_DIR + os.path.sep + 'nv.db')
 OBJECTDETECTOR_CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow", "diningtable", "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
-OBJECTDETECTOR_TARGETS = set(["cat", "motorbike", "dog", "person", "car", "bus", "aeroplane", "horse", "truck"])
+OBJECTDETECTOR_TARGETS = set(["cat", "motorbike", "dog", "person", "car", "horse", "truck"])
 tod = getDaylight()
-if tod == "Day":
-	OBJECTDETECTOR_CONFIDENCE = 0.69# found 0.49 to be a good number during night, 0.79 during day
-if tod == "Night":
-	OBJECTDETECTOR_CONFIDENCE = 0.49# found 0.49 to be a good number during night, 0.79 during day
+#if tod == "Day":
+#	OBJECTDETECTOR_CONFIDENCE = 0.69# found 0.49 to be a good number during night, 0.79 during day
+#if tod == "Night":
+#	OBJECTDETECTOR_CONFIDENCE = 0.49# found 0.49 to be a good number during night, 0.79 during day
+OBJECTDETECTOR_CONFIDENCE = 0.79
 TRACKER_MAX_AGE = 60
 TRAINPATH = (DATA_DIR + os.path.sep + "training_data")
 UNKNOWN_FACES_PATH = (DATA_DIR + os.path.sep + "unknown_faces")
 LOCALIP = "127.0.0.1"
 WEB_PORT = 5000
 IMGSRV_PORT = 5555
-SKIP_FRAMES = 100
+SKIP_FRAMES = 30
 IOFILES = {}
 ACTIVE_PROCESS_LIST = CAMERAS
 try:
@@ -436,7 +437,7 @@ RED = (0, 0, 255)
 GREEN = (0, 255, 0)
 BLUE = (255, 0 ,0)
 RESIZE = 400
-METHODS = ['face_recognition', 'object_detection']
+METHODS = ['face_recognition']
 HAARFILE = (DATA_DIR + os.path.sep + "haarcascade_frontalface_default.xml")
 SMILEFILE = (DATA_DIR + os.path.sep + "haarcascade_smile.xml")
 LBOFILE = (DATA_DIR + os.path.sep + "lbpcascade_frontalface.xml")

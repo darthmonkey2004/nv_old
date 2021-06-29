@@ -1,0 +1,9 @@
+export HOST_IP=192.168.2.13
+export TYPE='net'
+export SRC='rtsp://192.168.2.13/11'
+export SRC_2='rtsp://192.168.2.13/12'
+export SRC_DIMS='(1080, 1920)'
+export SRC2_DIMS='(352, 640)'
+export CAM_ID=3
+export FEED='http://192.168.2.13:9879/'
+export PTZ='False'
