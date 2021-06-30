@@ -80,7 +80,7 @@ try:
 	camera_id = int(sys.argv[1])
 except:
 	camera_id = int(1)
-src = nv.CAMERAS[camera_id] 
+src = nv.FEEDS[camera_id] 
 CLASSES = nv.OBJECTDETECTOR_CLASSES
 net = cv2.dnn.readNetFromCaffe(nv.PROTOTXT, nv.MODEL)
 vs = cv2.VideoCapture(src)
@@ -105,6 +105,7 @@ while True:
 	if totalFrames % nv.SKIP_FRAMES == 0:
 		#rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 		frame = imutils.resize(frame, width=400)
+		#frame = nv.resizeImg(frame, 50)
 		(H, W) = frame.shape[:2]
 		rects = []
 		status = "Detecting"
@@ -127,7 +128,8 @@ while True:
 				confidence = detections[0, 0, i, 2]
 				idx = int(detections[0, 0, i, 1])
 				name = nv.OBJECTDETECTOR_CLASSES[idx]
-				if name in nv.OBJECTDETECTOR_TARGETS and confidence > nv.OBJECTDETECTOR_CONFIDENCE:
+				if name in nv.OBJECTDETECTOR_TARGETS and confidence >= nv.OBJECTDETECTOR_CONFIDENCE:
+					#print (name, confidence, nv.OBJECTDETECTOR_CONFIDENCE)
 					dets = detections[0, 0, i, 3:7] * np.array([W, H, W, H])
 					(l, t, r, b) = dets.astype("int")
 					box = (l, t, r, b)
@@ -137,7 +139,7 @@ while True:
 					text = name + "_" + str(confidence)
 					trackers[object_id] = (text, tracker)
 					out = (text, box)
-					if name == "car" and camera_id == 1:
+					if name == "car" and camera_id == 3:
 						cars = cars + 1
 						if cars > 1:
 							writeOutImg(text, frame)
@@ -181,7 +183,7 @@ while True:
 					tracker = CT(text, rect)
 					out = (text, box)
 				else:
-					out = ("All fucked up", None)
+					out = (None, None)
 			output.append(out)
 			if tracker is not (None):
 				object_id = len(list(trackers.keys()))
@@ -207,7 +209,8 @@ while True:
 					to_del[object_id] = object_id#...flag object for removal
 				confidence = (confidence / 10)
 				name = (name + "_" + str(confidence))
-				#if confidence > nv.OBJECTDETECTOR_CONFIDENCE and age < nv.TRACKER_MAX_AGE:
+				if confidence < nv.OBJECTDETECTOR_CONFIDENCE:
+					to_del[object_id] = object_id
 				out = (name, box)
 				output.append(out)
 		for object_id in to_del.keys():

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 
+#TODO: get previous cam entries from sql database instead of CONF file, until I can phase out CONF entirely in nv
 testIpCam() {
 	ip="$1"
 	port="$2"
@@ -134,13 +135,25 @@ if [ -z "$SQLDB" ]; then
 	SQLDB="$HOME/.local/lib/python3.6/nv/nv.db"
 fi
 echo "Sql Database: '$SQLDB'"
-if [ ! -f "$SQLDB" ]; then
-	sql="CREATE TABLE IF NOT EXISTS cams (camera_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, src TEXT NOT NULL, src_2 TEXT, src_dims TEXT, src_2_dims TEXT, host_ip TEXT NOT NULL, feed TEXT NOT NULL, motion_conf TEXT NOT NULL, ptz TEXT DEFAULT 'False');"
-	results=$(sqlite3 "$SQLDB" "$sql")
-	if [ -n "$results" ]; then
-		echo "$results"
+if [ -f "$SQLDB" ]; then
+	echo "Database exists! Choose an option..."
+	echo "1. Backup old and start fresh"
+	echo "2. Merge with current database"
+	read -p "Enter choice number: " pick
+	if [ "$pick" = "1" ] || [ -z "$pick" ]; then
+		echo "Backing up old database."
+		mv "$SQLDB" "$SQLDB.bak"
+	elif [ "$pick" = "2" ]; then
+		echo "Keeping current database."
+	else
+		echo "Keeping current database."
 	fi
-fi 
+fi
+sql="CREATE TABLE IF NOT EXISTS cams (camera_id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, src TEXT NOT NULL, src_2 TEXT, src_dims TEXT, src_2_dims TEXT, host_ip TEXT NOT NULL, feed TEXT NOT NULL, motion_conf TEXT NOT NULL, ptz TEXT DEFAULT 'False');"
+results=$(sqlite3 "$SQLDB" "$sql")
+if [ -n "$results" ]; then
+	echo "$results"
+fi
 #TODO: sql table insertion function
 export HOST_SRCFILE="$HOME/.local/lib/python3.6/site-packages/nv/host.src"
 
@@ -171,24 +184,17 @@ for HOST_IP in "${hosts[@]}"; do
 		export SKIP=1
 		router=1
 	fi
-	cams=$(python3 -c "import nv; print (nv.readConfToShell())" | grep -v "None")
-	exists=$(echo "$cams" | grep "$HOST_IP")
+	SQLDB=$(python3 -c "import nv; print(nv.SQLDB)")
+	exists=$(sqlite3 "$SQLDB" "select camera_id from cams where host_ip = '$HOST_IP';")
+	echo "Exists: '$exists'"
 	#in some cases, the exists check can be ambiguous (i.e. host=192.168.2.1 inConf="192.168.2.10")..
-	if [ -n "$exists" ] && [ -z "$router" ]; then # if so...
-		#do further breakdown of the first result and ensure it's a match
-		IFS=$'\n' readarray checks <<< "$exists"
-		for check in "${checks[@]}"; do
-			chunk=$(dirname "$check")
-			base_address=$(basename "$chunk" | cut -d ':' -f 1)
-			if [ "$base_address" == "$HOST_IP" ]; then
-				read -p "Base address in config file already. Add anyway?" yesno
-				if [ "$yesno" = "y" ]; then
-					export SKIP=0
-				else
-					export SKIP=1
-				fi
-			fi
-		done			
+	if [ -n "$exists" ]; then
+		read -p "Ip address found in database, camera id '$exists'. Add anyway? " yn
+		if [ "$yn" = "y" ]; then
+			SKIP=0
+		else
+			SKIP=1
+		fi
 	fi
 	echo "Skip = $SKIP"
 	if [ "$SKIP" = "0" ]; then
@@ -257,7 +263,7 @@ for HOST_IP in "${hosts[@]}"; do
 						ct="${#urls[@]}"
 						if [ "$ct" = "0" ]; then
 							echo "Still failed. Aborting validation for '$HOST_IP:$port' ('$user:$pass')..."
-							break
+							export SKIP=1
 						fi
 					fi
 				done
@@ -301,7 +307,7 @@ for HOST_IP in "${hosts[@]}"; do
 		echo "export SRC='$src1'" >> "$HOST_SRCFILE"
 		echo "export SRC_2='$src2'" >> "$HOST_SRCFILE"
 		echo "export SRC_DIMS='$src1_dims'" >> "$HOST_SRCFILE"
-		echo "export SRC2_DIMS='$src2_dims'" >> "$HOST_SRCFILE"
+		echo "export SRC_2_DIMS='$src2_dims'" >> "$HOST_SRCFILE"
 		echo "Source1: '$src' ($src1_dims), Source2: '$src2' ($src2_dims)"
 		cam_id=$(sqlite3 "$SQLDB" "select Count(*) from cams;")
 		if [ -z "$cam_id" ]; then
@@ -311,7 +317,7 @@ for HOST_IP in "${hosts[@]}"; do
 		cam_id=$(( cam_id + 1 ))
 		echo "export CAM_ID=$cam_id" >> "$HOST_SRCFILE"
 		feed_port=$(( 9876 + $cam_id))
-		feed="http://$HOST_IP:$feed_port/"
+		feed="http://$localip:$feed_port/"
 		echo "export FEED='$feed'" >> "$HOST_SRCFILE"
 		read -p "Add ptz url? (n to skip)" yesno
 		if [ "$yesno" == "n" ] || [ -z "$yesno" ]; then
@@ -335,7 +341,7 @@ for HOST_IP in "${hosts[@]}"; do
 			else
 				cat "$HOST_SRCFILE"
 				source "$HOST_SRCFILE"
-				if [ -n "$HOST_IP" ] && [ -n "$SRC_DIMS" ] && [ -n "$SRC" ] && [ -n "$SRC_2" ] && [ -n "$SRC2_DIMS" ] && [ -n "$CAM_ID" ] && [ -n "$FEED" ] && [ -n "$PTZ" ]; then
+				if [ -n "$HOST_IP" ] && [ -n "$SRC_DIMS" ] && [ -n "$SRC" ] && [ -n "$SRC_2" ] && [ -n "$SRC_2_DIMS" ] && [ -n "$CAM_ID" ] && [ -n "$FEED" ] && [ -n "$PTZ" ]; then
 					motion_conf="/etc/motion/conf.d/camera$CAM_ID.conf"
 					echo "INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
 					sql="INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
@@ -345,6 +351,8 @@ for HOST_IP in "${hosts[@]}"; do
 					else
 						echo "Ok."
 					fi
+				else
+					echo "SQL not witten! (HOST_IP='$HOST_IP', SRC_DIMS='$SRC_DIMS', SRC='$SRC', SRC_2='$SRC_2', SRC2_DIMS='$SRC2_DIMS', CAM_ID='$CAM_ID', FEED='$FEED', PTZ='$PTZ')"
 				fi
 			fi
 		fi
@@ -359,32 +367,204 @@ for dev in "${devs[@]}"; do
 	echo "Count: $ct, id: $CAM_ID"
 	dev=$(echo "$dev" | cut -d $'\n' -f 1)
 	if [ -n "$dev" ]; then
-		data=$(v4l2-ctl -d "$dev" --all)
-		isok=$(echo "$data" | grep "Video input :" | grep ": ok")
-		input=$(echo "$data" | grep "Video input :"  | cut -d ' ' -f 4)
-		if [ -n "$isok" ]; then
-			str=$(echo "$data" | grep "Selection: crop_default")
-			w=$(echo "$str" | cut -d ' ' -f 8 | cut -d ',' -f 1)
-			h=$(echo "$str" | cut -d ' ' -f 10)
-			std=$(echo "$data" | grep "NTSC")
-			if [ -n "$std" ]; then
-				std=1
+		exists=$(sqlite3 "$SQLDB" "select camera_id from cams where src like '%$dev%';")
+		if [ -n "$exists" ]; then
+			echo "Device already in database. skipping..."
+			SKIP=1
+		else
+			SKIP=0
+		fi
+		if [ "$SKIP" = "0" ]; then
+			data=$(v4l2-ctl -d "$dev" --all)
+			isok=$(echo "$data" | grep "Video input :" | grep ": ok")
+			input=$(echo "$data" | grep "Video input :"  | cut -d ' ' -f 4)
+			if [ -n "$isok" ]; then
+				str=$(echo "$data" | grep "Selection: crop_default")
+				w=$(echo "$str" | cut -d ' ' -f 8 | cut -d ',' -f 1)
+				h=$(echo "$str" | cut -d ' ' -f 10)
+				std=$(echo "$data" | grep "NTSC")
+				if [ -n "$std" ]; then
+					std=1
+				fi
+				
+				echo "Device: '$dev', Input: '$input', ($w, $h), Standard: '$std'"
+				FEED_PORT=$(( 9877 + $CAM_ID))
+				HOST_IP='localhost'
+				FEED="http://$localip:$FEED_PORT/"
+				TYPE=v4l2
+				SRC="$dev"
+				SRC_2='None'
+				SRC_DIMS="($w, $h)"
+				SRC_2_DIMS='None'
+				PTZ='None'
+				motion_conf="/etc/motion/conf.d/camera$CAM_ID.conf"
+				sql="INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
+				results=$(sqlite3 "$SQLDB" "$sql")
 			fi
-			
-			echo "Device: '$dev', Input: '$input', ($w, $h), Standard: '$std'"
-			FEED_PORT=$(( 9877 + $CAM_ID))
-			HOST_IP='localhost'
-			FEED="http://$localip:$FEED_PORT/"
-			TYPE=v4l2
-			SRC="$dev"
-			SRC_2='None'
-			SRC_DIMS="($w, $h)"
-			SRC_2_DIMS='None'
-			PTZ='None'
-			motion_conf="/etc/motion/conf.d/camera$CAM_ID.conf"
-			sql="INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
-			results=$(sqlite3 "$SQLDB" "$sql")
-			
 		fi
 	fi
 done
+cam_ids=$(sqlite3 "$SQLDB" "select camera_id from cams;")
+confpath="/etc/motion/motion.conf"
+if [ -f "$confpath" ]; then
+	sudo mv "$confpath" "confpath.bak"
+fi
+mainconf="motion.conf"
+if [ -f "$mainconf" ]; then
+	rm "$mainconf"
+fi
+user="$USER"
+password=$(secret-tool lookup bubblecam password)
+data='daemon on
+process_id_file /var/run/motion/motion.pid
+setup_mode off
+logfile /var/log/motion/motion.log
+log_level 6
+log_type all
+videodevice /dev/video3
+v4l2_palette 17
+; tunerdevice /dev/tuner0
+input 0
+norm 1
+frequency 0
+power_line_frequency 2
+rotate 0
+width 640
+height 480
+framerate 10
+minimum_frame_time 0
+netcam_keepalive off
+netcam_tolerant_check off
+rtsp_uses_tcp on
+auto_brightness off
+brightness 0
+contrast 0
+saturation 0
+hue 0
+roundrobin_frames 1
+roundrobin_skip 1
+switchfilter off
+threshold 1500
+threshold_tune off
+noise_level 32
+noise_tune on
+despeckle_filter EedDl
+minimum_motion_frames 1
+pre_capture 0
+post_capture 0
+event_gap 60
+max_movie_time 0
+emulate_motion off
+output_pictures off
+output_debug_pictures off
+quality 75
+picture_type jpeg
+ffmpeg_output_movies off
+ffmpeg_output_debug_movies off
+ffmpeg_timelapse 0
+ffmpeg_timelapse_mode daily
+ffmpeg_bps 400000
+ffmpeg_variable_bitrate 0
+ffmpeg_video_codec mpeg4
+ffmpeg_duplicate_frames true
+use_extpipe off
+snapshot_interval 0
+locate_motion_mode on
+locate_motion_style redcross
+text_right %Y-%m-%d\n%T-%q
+; text_left CAMERA %t
+text_changes off
+text_event %Y%m%d%H%M%S
+text_double off
+;exif_text %i%J/%K%L
+snapshot_filename %v-%Y%m%d%H%M%S-snapshot
+picture_filename %v-%Y%m%d%H%M%S-%q
+movie_filename %v-%Y%m%d%H%M%S
+timelapse_filename %Y%m%d-timelapse
+ipv6_enabled off
+stream_quality 50
+stream_motion off
+stream_maxrate 100
+stream_localhost off
+stream_limit 0
+stream_auth_method 0
+stream_authentication admin:password
+'
+data2="webcontrol_port 8080
+webcontrol_localhost off
+webcontrol_html_output on
+webcontrol_authentication $user:$password
+"
+data3='track_type 0
+track_auto off
+;track_port /dev/ttyS0
+;track_motorx 0
+;track_motorx_reverse 0
+;track_motory 1
+;track_motory_reverse 0
+;track_maxx 200
+;track_minx 50
+;track_maxy 200
+;track_miny 50
+;track_homex 128
+;track_homey 128
+track_iomojo_id 0
+track_step_angle_x 10
+track_step_angle_y 10
+track_move_wait 10
+track_speed 255
+track_stepsize 40
+quiet on
+; camera /etc/motion/conf.d/camera1.conf'
+echo "$data" > "$mainconf"
+echo "$data1" >> "$mainconf"
+echo "$data2" >> "$mainconf"
+cams=($cam_ids)
+if [ ! -d /etc/motion/conf.d ]; then
+	sudo mkdir /etc/motion/conf.d
+fi
+for cam_id in "${cams[@]}"; do
+	conf="camera$cam_id.conf"
+	data=$(sqlite3 "$SQLDB" "select type,src,src_dims,feed from cams where camera_id = '$cam_id';")
+	type=$(echo "$data" | cut -d '|' -f 1)
+	src=$(echo "$data" | cut -d '|' -f 2)
+	src_dims=$(echo "$data" | cut -d '|' -f 3)
+	h=$(echo "$src_dims" | cut -d ' ' -f 1 | cut -d ',' -f 1 | cut -d '(' -f 2)
+	w=$(echo "$src_dims" | cut -d ' ' -f 2 | cut -d ')' -f 1)
+	echo "height $h" > "$conf"
+	echo "width $w" >> "$conf"
+	echo "camera_id $cam_id" >> "$conf"
+	echo "Type: '$type'"
+	stream_port=$(echo "$data" | cut -d '|' -f 4 | cut -d ':' -f 3 | cut -d '/' -f 1)
+	echo "stream_port $stream_port" >> "$conf"
+	echo "stream_quality 50" >> "$conf"
+	echo "stream_localhost off" >> "$conf"
+	echo "stream_limit 0" >> "$conf"
+	if [ "$type" == 'net' ]; then
+		echo "netcam_url $src" >> "$conf"
+		echo "netcam_keepalive yes" >> "$conf"
+		echo "netcam_tolerant_check on" >> "$conf"
+
+	elif [ "$type" == "v4l2" ]; then
+		echo "videodevice $src" >> "$conf"
+		echo "input 0" >> "$conf"
+		echo "norm = 1" >> "$conf"
+		echo "v4l2_palette = 17" >> "$conf"
+	fi
+	echo "camera /etc/motion/conf.d/$conf" >> motion.conf
+	sudo mv "$conf" "/etc/motion/conf.d/$conf"
+done
+if [ -n $(pgrep motion) ]; then
+	sudo kill $(pgrep motion)
+fi
+if [ -f /etc/motion/motion.conf ]; then
+	sudo mv /etc/motion/motion.conf /etc/motion/motion.conf.bak
+fi
+sudo mv motion.conf /etc/motion/motion.conf
+if [ -f /var/log/motion.log ]; then
+	sudo rm /var/log/motion.log
+fi
+sudo touch /var/log/motion/motion.log
+sudo chown /var/log/motion/motion.log motion
+sudo chmod a+rwx /var/log/motion/motion.log
+sudo motion -c /etc/motion/motion.conf

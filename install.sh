@@ -15,8 +15,8 @@ if [ -z "$hasnv" ]; then
 	sudo mv "$dir/nv/nv.run" "/usr/local/bin/nv"
 fi
 sudo apt-get install -y curl nmap
-. "$dir/nv/scan.networkCameras.sh"
-. "$dir/nv/motion_conf.sh"
+. "$dir/nv/scancams.sh"
+. "$dir/nv/mkconf.sh"
 python3 "$dir/nv/mkhtml.py"
 echo "Done! To start: run 'nv'. To end: run 'nv kill'."
 exit 0

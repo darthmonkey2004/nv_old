@@ -1,21 +1,22 @@
 import nv
+import sqlite3
 
-def browseLocal(webpageText, filename='tempBrowseLocal.html'):
-    '''Start your webbrowser on a local file containing the text
-    with given filename.'''
-    import webbrowser, os.path
-    strToFile(webpageText, filename)
-    webbrowser.open("file:///" + os.path.abspath(filename)) #elaborated for Mac
+conn = sqlite3.connect(nv.SQLDB)
+cur = conn.cursor()
+cur.execute("SELECT camera_id, src, src_dims, feed, ptz FROM cams")
+rows = cur.fetchall()
+CAMERAS = {}
+FEEDS = {}
+PTZS = {}
+DIMS = {}
+for row in rows:
+	camera_id, src, src_dims, feed, ptz = row
+	CAMERAS[camera_id] = src
+	FEEDS[camera_id] = feed
+	PTZS[camera_id] = ptz
+	DIMS[camera_id] = src_dims
 
-def fileToStr(fileName): # NEW
-    """Return a string containing the contents of the named file."""
-    fin = open(fileName); 
-    contents = fin.read();  
-    fin.close() 
-    return contents
 title="CAMVIEWER"
-w_px = "640px"
-h_px = "480px"
 #contents = fileToStr('index.html').format(**locals())
 #browseLocal(contents)
 #exit()
@@ -29,21 +30,28 @@ html = '''
 	<style type="text/css">
 	.mover '''.format(**locals())
 html2 = """ {
-		 width:640px; height:480px; line-height:4em; margin:10px; padding:5px; float:left; border:1px dotted #333333; text-align:center;
+		 line-height:4em; margin:10px; padding:5px; float:left; border:1px dotted #333333; text-align:center;
 			 }"""
+#TODO html3 = '''width:640px; height:{}px; '''.format(**locals())
 html = (html + html2)
-for cam_id in list(nv.CAMERAS.keys()):
+for cam_id in list(CAMERAS.keys()):
 	js_camsBlock1='''
 			 #box_{cam_id}'''.format(**locals())
 	js_camsBlock2="""{
-				background-image: url("""
-	js_camsBlock3="""{{ url_for('video_feed', id='"""
-	js_camsBlock4='''{cam_id}'''.format(**locals())
-	js_camsBlock5="""') }}"""
-	js_camsBlock6=""")
+				"""
+	dims= (DIMS[cam_id])
+	h = dims.split(',')[0].split('(')[1]
+	w = dims.split(' ')[1].split(')')[0]
+	print (w, h)
+	js_camsBlock3='''width:{w}px; height:{h}px; '''.format(**locals())
+	js_camsBlock4="""background-image: url("""
+	js_camsBlock5="""{{ url_for('video_feed', id='"""
+	js_camsBlock6='''{cam_id}'''.format(**locals())
+	js_camsBlock7="""') }}"""
+	js_camsBlock8=""")
 			 }
 """
-	js_camsBlock = (js_camsBlock1 + js_camsBlock2 + js_camsBlock3 + js_camsBlock4 + js_camsBlock5 + js_camsBlock6)
+	js_camsBlock = (js_camsBlock1 + js_camsBlock2 + js_camsBlock3 + js_camsBlock4 + js_camsBlock5 + js_camsBlock6 + js_camsBlock7 + js_camsBlock8)
 	html = (html + js_camsBlock)
 html2 = """
 
@@ -67,7 +75,7 @@ html2 = """
 		<div id="camsection">
 """
 html = (html + html2)
-for cam_id in list(nv.CAMERAS.keys()):
+for cam_id in list(CAMERAS.keys()):
 	html_camsBlock='''
 			<div id="box{cam_id}" ondragover="event.preventDefault()" ondrop="dropWord(event)">
 			<div class="mover" id="box_{cam_id}" draggable="true" ondragstart="dragWord(event)"></div> 
