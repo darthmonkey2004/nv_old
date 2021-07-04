@@ -4,6 +4,7 @@ import face_recognition
 import pickle
 import glob
 import nv
+import imutils
 
 def resizeImg(img, scale):
 	#print ((img.shape[1]), (img.shape[0]))
@@ -37,7 +38,7 @@ def train(path = None):
 	for file in filtered_list:
 		pos = pos + 1
 		img = face_recognition.load_image_file(file)
-		img = resizeImg(img, 50)
+		img = imutils.resize(img, width=400)
 		name = file.split('.')[0]
 		if name not in names:
 			namect=1
@@ -50,6 +51,7 @@ def train(path = None):
 		ct = len(filtered_list)
 		print ("Name: " + name + "(" + str(pos) + "/" + str(ct) + ")")
 		try:
+			#all_face_encodings[name] = face_recognition.face_encodings(img,None,3,'large')[0]
 			all_face_encodings[name] = face_recognition.face_encodings(img)[0]
 		except:
 			continue

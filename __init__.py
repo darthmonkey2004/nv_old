@@ -7,6 +7,9 @@
 #-Matt
 #darthmonkey2004@gmail.com
 #NOTE: boxes should be in dlib rectangle format: (l,t,r,b)
+#TODO: create add single camera function
+#TODO: create mkdataset_fromCamera and mkdataset_fromImage functions that will aquire name and properly save image to 'train_data' directory
+#TODO: create capture class that utilizes cv2, imagezmq, and possibly imutils captures as a standardized class
 from PIL import Image, ImageDraw
 import numpy as np
 import os.path
@@ -16,6 +19,7 @@ from scipy.spatial import distance as dist
 from collections import OrderedDict
 import numpy as np
 import sqlite3
+import face_recognition
 
 #dlib rectangle objects are (l,t,r,b)
 sep = os.path.sep
@@ -28,8 +32,9 @@ from nv.main import ipptz as ipptz
 from nv.main import serve as serve
 from nv.main import correlation_tracker as correlation_tracker
 from nv.main import trackable_object as trackable_object
-from nv.main.capture import VideoCapture
+from nv.main import capture as cap
 from nv.main import trainer as trainer
+from nv.main import detector as detector
 
 def getDaylight():
 	import time
@@ -211,7 +216,7 @@ def testCam(src):#A helper function for scan.networkCameras.sh
 
 def mkIoFiles():
 	for camera_id in CAMERAS.keys():
-		name = (str(camera_id) + ".io")
+		name = (DATA_DIR+ os.path.sep + str(camera_id) + ".io")
 		is_tracking = False
 		boxes = []
 		out = (is_tracking, boxes)
@@ -270,9 +275,13 @@ def resizeImg(img, scale):
 	return retimg
 
 def recognize(imgpath):
+	import imutils
 	import face_recognition
-	img = face_recognition.load_image_file(imgpath)
-	img = resizeImg(img, 50)
+	if type(imgpath) == str:
+		img = face_recognition.load_image_file(imgpath)
+	else:
+		img = imgpath
+	img = imutils.resize(img, width=400)
 	name = None
 	matches = []
 	face_location = None
@@ -280,21 +289,21 @@ def recognize(imgpath):
 		test_face = face_recognition.face_encodings(img)
 		test_location = face_recognition.face_locations(img)
 		if len(test_face) == 0:
-			out = None
-			return out
+			return (None, None)
 		else:
 			name = "Unidentified Face"
 			result = face_recognition.compare_faces(KNOWN_ENCODINGS, test_face[0])
 			if True in result:
 				i = result.index(True)
-				name = KNOWN_NAMES[i]
+				namelist = list(ALL_FACE_ENCODINGS.keys())
+				name = namelist[i]
 				splitter = '_'
 				name = name.split(splitter)[0]
 		if test_location is not None:
-			out = (imgpath, name, test_location[0])
+			out = (name, test_location[0])
 			return (out)
 		else:
-			return None
+			return (None, None)
 
 def recognize_raw(img):
 	import face_recognition
@@ -318,7 +327,7 @@ def recognize_raw(img):
 				name = name.split(splitter)[0]
 			return (name, face_location[0])
 
-def recognize_dir(path = None):
+def recognize_dir(path = None, outfile=False):
 	logfile = 'testimages.log'
 	import glob
 	output = {}
@@ -336,24 +345,38 @@ def recognize_dir(path = None):
 		except:
 			matches = None
 		if matches is not None:
-			filename, result, location = matches
-			output[pos] = (filename, result)
+			result, location = matches
+			output[pos] = (result, location)
 			cur = (pos, ct)
 			print (cur, result)
-			with open(logfile, 'wb') as f:
-				pickle.dump(output, f)
-			f.close()
-	print ("Done!")
+			if outfile is not False:
+				with open(outfile, 'wb') as f:
+					pickle.dump(output, f)
+				f.close()
+	return output
 	exit()
 
-def face_detect(imgpath):
-	img = cv2.imread(imgpath)
+def face_detect_cv2(imgpath):
+	if type(imgpath) == str:
+		img = cv2.imread(imgpath)
+	else:
+		img = imgpath
 	gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)# convert to grayscale
-	faces = nv.FD_CASCADE.detectMultiScale(gray, 1.1, 4)#detect faces
+	faces = FD_CASCADE.detectMultiScale(gray, 1.1, 4)#detect faces
 	for face in faces:
 		x, y, w, h = face
-		cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)#draw rectangle over face on image.
-	return faces
+		#cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)#draw rectangle over face on image.
+		return (x, y, (x+w), (y+h))
+
+def face_detect(imgpath):
+	if type(imgpath) == str:
+		img = face_recognition.load_image_file(imgpath)
+	else:
+		img = imgpath	
+	faces = face_recognition.face_locations(img)
+	for face in faces:
+		return face
+
 
 def readDbFile(datfile=None):
 	ALL_FACE_ENCODINGS = {}
@@ -411,7 +434,7 @@ EXEC_DIR = (userdir + os.path.sep + ".local" + os.path.sep + "lib" + os.path.sep
 DATA_DIR=(userdir + os.path.sep + "Nicole" + os.path.sep + "NicVision")
 KNOWN_FACES_DB=(DATA_DIR + "/nv_known_faces.dat")
 #CONF=(DATA_DIR + "/nv.conf")
-MOTION_CONF=(DATA_DIR + "/nv.motion_feeds.conf")
+#MOTION_CONF=(DATA_DIR + "/nv.motion_feeds.conf")
 CAP_EXEC = (EXEC_DIR + os.path.sep + "capture.py")
 PROTOTXT = (DATA_DIR + os.path.sep + 'MobileNetSSD_deploy.prototxt')
 MODEL = (DATA_DIR + os.path.sep + 'MobileNetSSD_deploy.caffemodel')
@@ -435,8 +458,8 @@ tod = getDaylight()
 #	OBJECTDETECTOR_CONFIDENCE = 0.69# found 0.49 to be a good number during night, 0.79 during day
 #if tod == "Night":
 #	OBJECTDETECTOR_CONFIDENCE = 0.49# found 0.49 to be a good number during night, 0.79 during day
-OBJECTDETECTOR_CONFIDENCE = 0.4
-TRACKER_MAX_AGE = 60
+OBJECTDETECTOR_CONFIDENCE = 0.49
+TRACKER_MAX_AGE = 30
 TRAINPATH = (DATA_DIR + os.path.sep + "training_data")
 UNKNOWN_FACES_PATH = (DATA_DIR + os.path.sep + "unknown_faces")
 LOCALIP = "127.0.0.1"

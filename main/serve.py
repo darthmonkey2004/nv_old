@@ -43,8 +43,8 @@ import docopt
 #import nv.Main.ipptz as ipptz
 
 
-servo = nv.ipptz.ServoDriver()
-servo2 = nv.servo.ServoDriver('/dev/ttyACM0', 57600)
+#servo = nv.ipptz.ServoDriver()
+#servo2 = nv.servo.ServoDriver('/dev/ttyACM0', 57600)
 outputFrame = None
 app = Flask(__name__)
 def gen_frames(camera_id, iofiles, outfile=False):
@@ -101,13 +101,13 @@ def gen_frames(camera_id, iofiles, outfile=False):
 							x = l + cx
 							cy = ((b - t) / 2)
 							y = b - cy
-							servo.move(x, y, WIDTH, HEIGHT)
+							#servo.move(x, y, WIDTH, HEIGHT)
 						elif camera_id == 1:
 							cx = ((r - l) / 2)
 							x = l + cx
 							cy = ((b - t) / 2)
 							y = b - cy
-							servo2.move(x, y, WIDTH, HEIGHT)
+							#servo2.move(x, y, WIDTH, HEIGHT)
 						frame = cv2.rectangle(frame, (int(l), int(t), int(r), int(b)), nv.RED, 2)
 						y = t + 30
 						coords = (int(l), int(y))
