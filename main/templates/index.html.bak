@@ -8,7 +8,7 @@
 		width=100%;
 		height=100%;
 	}
-	.mover  {
+	.mover {
 		width:640px;
 		height:320px;
 		line-height:4em;
@@ -18,25 +18,25 @@
 		border:1px dotted #333333;
 		text-align:center;
 	}
-			 #box_1{
-				background-image: url({{ url_for('video_feed', id='1') }}); background-repeat: no-repeat; background-size: 100% 100%;
-			 }
+		 #box_1{
+			background-image: url({{ url_for('video_feed', id='1') }}); background-repeat: no-repeat; background-size: 100% 100%;
+		 }
 
-			 #box_2{
-				background-image: url({{ url_for('video_feed', id='2') }}); background-repeat: no-repeat; background-size: 100% 100%;
-			 }
+		 #box_2{
+			background-image: url({{ url_for('video_feed', id='2') }}); background-repeat: no-repeat; background-size: 100% 100%;
+		 }
 
-			 #box_3{
-				background-image: url({{ url_for('video_feed', id='3') }}); background-repeat: no-repeat; background-size: 100% 100%;
-			 }
+		 #box_3{
+			background-image: url({{ url_for('video_feed', id='3') }}); background-repeat: no-repeat; background-size: 100% 100%;
+		 }
 
-			 #box_4{
-				background-image: url({{ url_for('video_feed', id='4') }}); background-repeat: no-repeat; background-size: 100% 100%;
-			 }
+		 #box_4{
+			background-image: url({{ url_for('video_feed', id='4') }}); background-repeat: no-repeat; background-size: 100% 100%;
+		 }
 
-			 #box_5{
-				background-image: url({{ url_for('video_feed', id='5') }}); background-repeat: no-repeat; background-size: 100% 100%;
-			 }
+		 #box_5{
+			background-image: url({{ url_for('video_feed', id='5') }}); background-repeat: no-repeat; background-size: 100% 100%;
+		 }
 
 
 

@@ -10,6 +10,7 @@ FEEDS = {}
 PTZS = {}
 DIMS = {}
 for row in rows:
+	print (row)
 	camera_id, src, src_dims, feed, ptz = row
 	CAMERAS[camera_id] = src
 	FEEDS[camera_id] = feed
@@ -28,30 +29,35 @@ html = '''
 <head>
 	<title>{title}</title>
 	<style type="text/css">
-	.mover '''.format(**locals())
-html2 = """ {
-		 line-height:4em; margin:10px; padding:5px; float:left; border:1px dotted #333333; text-align:center;
-			 }"""
+	.camsection'''.format(**locals())
+html2=""" {
+		width=100%;
+		height=100%;
+	}
+	.mover  {
+		width:640px;
+		height:320px;
+		line-height:4em;
+		margin:10px;
+		padding:5px;
+		float:left;
+		border:1px dotted #333333;
+		text-align:center;
+	}"""
 #TODO html3 = '''width:640px; height:{}px; '''.format(**locals())
 html = (html + html2)
 for cam_id in list(CAMERAS.keys()):
 	js_camsBlock1='''
 			 #box_{cam_id}'''.format(**locals())
 	js_camsBlock2="""{
-				"""
-	dims= (DIMS[cam_id])
-	h = dims.split(',')[0].split('(')[1]
-	w = dims.split(' ')[1].split(')')[0]
-	print (w, h)
-	js_camsBlock3='''width:{w}px; height:{h}px; '''.format(**locals())
-	js_camsBlock4="""background-image: url("""
-	js_camsBlock5="""{{ url_for('video_feed', id='"""
-	js_camsBlock6='''{cam_id}'''.format(**locals())
-	js_camsBlock7="""') }}"""
-	js_camsBlock8=""")
+				background-image: url("""
+	js_camsBlock3="""{{ url_for('video_feed', id='"""
+	js_camsBlock4='''{cam_id}'''.format(**locals())
+	js_camsBlock5="""') }}"""
+	js_camsBlock6="""); background-repeat: no-repeat; background-size: 100% 100%;
 			 }
 """
-	js_camsBlock = (js_camsBlock1 + js_camsBlock2 + js_camsBlock3 + js_camsBlock4 + js_camsBlock5 + js_camsBlock6 + js_camsBlock7 + js_camsBlock8)
+	js_camsBlock = (js_camsBlock1 + js_camsBlock2 + js_camsBlock3 + js_camsBlock4 + js_camsBlock5 + js_camsBlock6)
 	html = (html + js_camsBlock)
 html2 = """
 
@@ -72,7 +78,7 @@ html2 = """
 	</script> 
 	</head> 
 	<body>
-		<div id="camsection">
+		<div class="camsection" id="camsection">
 """
 html = (html + html2)
 for cam_id in list(CAMERAS.keys()):

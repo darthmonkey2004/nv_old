@@ -77,7 +77,7 @@ while True:
 						name = recname
 						box = recface
 						tracker = CT(box, frame)
-				writeOutImg(name, frame)
+					writeOutImg(name, frame)
 				out = (name, box)
 				output.append(out)
 		elif "face_recognition" in nv.METHODS:

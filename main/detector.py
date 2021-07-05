@@ -36,7 +36,10 @@ class detector:
 		if self.box is None:
 			return (None, None)
 		self.name = "Detected Face"
-		out = (self.name, self.box[0])
+		try:
+			out = (self.name, self.box[0])
+		except:
+			out = (None, None)
 		return out
 
 	def recognize(self, imgpath):
@@ -48,7 +51,8 @@ class detector:
 		if img is None:
 			return (None, None)
 		self.box = face_recognition.face_locations(img)
-		if self.box is None:
+		print (self.box)
+		if self.box == []:
 			return (None, None)
 		self.encoding = face_recognition.face_encodings(img, self.box)
 		self.result = face_recognition.compare_faces(self.known_encodings, self.encoding)

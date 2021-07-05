@@ -102,6 +102,8 @@ getLocalIp() {
 }
 
 ipWebCam() {
+	ip="$1"
+	port="$2"
 	read -p "Does this camera have authentication? (y/n): " yn
 	if [ "$yn" = "y" ]; then
 		read -p "Enter username for video stream:" user
@@ -126,7 +128,7 @@ getDims() {
 	h=$(echo "$data" | grep "ID_VIDEO_HEIGHT=" | cut -d '=' -f 2)
 	#echo "w='$w'" >> "$HOST_SRCFILE"
 	#echo "h='$h'" >> "$HOST_SRCFILE"
-	ret="$w,$h"
+	ret="($w, $h)"
 	echo "$ret"
 }
 
@@ -172,6 +174,9 @@ hosts=($hosts)
 localip=$(getLocalIp)
 echo "Scan complete. Found total of "${#hosts[@]}" online hosts. Beginning service discovery..."
 for HOST_IP in "${hosts[@]}"; do
+	if [ -f "$HOST_SRCFILE" ]; then
+		rm "$HOST_SRCFILE"
+	fi
 	echo "Testing: '$HOST_IP'.."
 	router=''
 	export SKIP=0
@@ -206,8 +211,9 @@ for HOST_IP in "${hosts[@]}"; do
 	fi
 	if [ "$SKIP" = "0" ]; then
 		if [ "$PORT" == "9876" ]; then
-			addurl=$(ipWebCam)
+			addurl=$(ipWebCam $HOST_IP $PORT)
 			dims=$(getDims "$addurl")
+			TYPE='net'
 			echo "export HOST_IP='$HOST_IP'" >> "$HOST_SRCFILE"
 			echo "export TYPE='net'" >> "$HOST_SRCFILE"
 			echo "export SRC='$addurl'" >> "$HOST_SRCFILE"
@@ -220,24 +226,30 @@ for HOST_IP in "${hosts[@]}"; do
 			fi
 			#cam_id=$(python3 -c "import nv; print(len(nv.CAMERAS))")
 			cam_id=$(( cam_id + 1 ))
-			feed_port=$(( 9877 + $cam_id))
+			motion_conf="/etc/motion/conf.d/camera$cam_id.conf"
+			feed_port=$(( 9876 + $cam_id))
 			echo "export CAM_ID=$cam_id" >> "$HOST_SRCFILE"	
 			feed="http://$localip:$feed_port/"
 			echo "export FEED='$feed'" >> "$HOST_SRCFILE"
 			echo "export PTZ='None'" >> "$HOST_SRCFILE"
 			source "$HOST_SRCFILE"
-			if [ -n "$HOST_IP" ] && [ -n "$SRC_DIMS" ] && [ -n "$SRC" ] && [ -n "$SRC_2" ] && [ -n "$SRC2_DIMS" ] && [ -n "$CAM_ID" ] && [ -n "$FEED" ] && [ -n "$PTZ" ]; then
+			export SRC_2_DIMS=None
+			if [ -n "$HOST_IP" ] && [ -n "$SRC_DIMS" ] && [ -n "$SRC" ] && [ -n "$SRC_2" ] && [ -n "$SRC_2_DIMS" ] && [ -n "$CAM_ID" ] && [ -n "$FEED" ] && [ -n "$PTZ" ] && [ -n "$TYPE" ]; then
 				motion_conf="/etc/motion/conf.d/camera$CAM_ID.conf"
-				echo "INSERT INTO cams(camera_id, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
-				sql="INSERT INTO cams(camera_id, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
+				echo "INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
+				sql="INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
 				results=$(sqlite3 "$SQLDB" "$sql")
 				if [ -n "$results" ]; then
 					echo "$results"
 				else
 					echo "Ok."
 				fi
+				SKIP=1
+			else
+				echo "Vars not set:"
+				echo "CAM_ID='$CAM_ID', TYPE='$TYPE', SRC='$SRC', SRC_2='$SRC_2', SRC_DIMS='$SRC_DIMS', SRC_2_DIMS='$SRC_2_DIMS', HOST_IP='$HOST_IP', FEED='$FEED', motion_conf='$motion_conf', PTZ='$PTZ'"
+				export SKIP=1
 			fi
-			export SKIP=1
 		
 		else
 			urls=$(testIpCam $HOST_IP $PORT)
@@ -341,7 +353,7 @@ for HOST_IP in "${hosts[@]}"; do
 			else
 				cat "$HOST_SRCFILE"
 				source "$HOST_SRCFILE"
-				if [ -n "$HOST_IP" ] && [ -n "$SRC_DIMS" ] && [ -n "$SRC" ] && [ -n "$SRC_2" ] && [ -n "$SRC_2_DIMS" ] && [ -n "$CAM_ID" ] && [ -n "$FEED" ] && [ -n "$PTZ" ]; then
+				if [ -n "$HOST_IP" ] && [ -n "$SRC_DIMS" ] && [ -n "$SRC" ] && [ -n "$SRC_2" ] && [ -n "$SRC_2_DIMS" ] && [ -n "$CAM_ID" ] && [ -n "$FEED" ] && [ -n "$PTZ" ] && [ -n "$TYPE" ]; then
 					motion_conf="/etc/motion/conf.d/camera$CAM_ID.conf"
 					echo "INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
 					sql="INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
@@ -568,3 +580,10 @@ sudo touch /var/log/motion/motion.log
 sudo chown /var/log/motion/motion.log motion
 sudo chmod a+rwx /var/log/motion/motion.log
 sudo motion -c /etc/motion/motion.conf
+cd "$HOME/.local/lib/python3.6/site-packages/nv"
+python3 mkhtml.py
+pid=$(pgrep nv)
+if [ -n "$pid" ]; then
+	nv kill
+fi
+nv
