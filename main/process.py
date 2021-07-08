@@ -5,7 +5,6 @@ from correlation_tracker import CorrelationTracker as CT
 from trackable_object import TrackableObject
 from imutils.video import VideoStream
 from imutils.video import FPS
-from detector import detector
 import numpy as np
 import face_recognition
 import imutils
@@ -52,42 +51,50 @@ status = "Waiting"
 writeout = None
 face_cascade = cv2.CascadeClassifier(nv.HAARFILE)
 tracker = None
-det = detector()
+det = nv.detector.detector()
 name = None
 while True:
 	tracker = None
 	output = []
 	ret, frame = vs.read()
+	name = None
+	box = None
 	if ret == False:
 		continue
 	if totalFrames % nv.SKIP_FRAMES == 0:
 		if "face_detection" in nv.METHODS:
-			name, box = det.face_detect(frame)
-			if box is not None:
+			dname, dbox = det.face_detect(frame)
+			if dbox is not None:
+				box = dbox
+				name = dname
 				tracker = CT(box, frame)
 				output.append(out)
 		elif "object_detection" in nv.METHODS:
-			name, box = det.object_detect(frame)
-			if box is not None:
-				tracker = CT(box, frame)
-				if name == "person":
+			oname, obox = det.object_detect(frame)
+			if obox is not None:
+				name = oname
+				box = obox
+				if "person" in name:
 					name = "Unrecognized Face"
 					recname, recbox = det.recognize(frame)
 					if recname is not None:
 						name = recname
-						box = recface
-						tracker = CT(box, frame)
+						box = recbox
 					writeOutImg(name, frame)
+				tracker = CT(box, frame)
 				out = (name, box)
 				output.append(out)
 		elif "face_recognition" in nv.METHODS:
-			name, box = det.recognize(frame)
-			if box is not None:
-				tracker = CT(box, frame)
+			tname, tbox = det.recognize(frame)
+			if tbox is not None:
+				name = tname
+				box = tbox
+				out = (name, box)
+				tracker = CT(tbox, frame)
 				output.append(out)
 
 
-		if tracker is not (None):
+		if tracker is not (None) and name is not None:
 			object_id = len(list(trackers.keys()))
 			object_id = object_id + 1
 			trackers[object_id] = (name, tracker)

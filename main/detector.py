@@ -51,7 +51,6 @@ class detector:
 		if img is None:
 			return (None, None)
 		self.box = face_recognition.face_locations(img)
-		print (self.box)
 		if self.box == []:
 			return (None, None)
 		self.encoding = face_recognition.face_encodings(img, self.box)
