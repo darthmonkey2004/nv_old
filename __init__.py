@@ -94,7 +94,7 @@ tod = getDaylight()
 #	OBJECTDETECTOR_CONFIDENCE = 0.69# found 0.49 to be a good number during night, 0.79 during day
 #if tod == "Night":
 #	OBJECTDETECTOR_CONFIDENCE = 0.49# found 0.49 to be a good number during night, 0.79 during day
-OBJECTDETECTOR_CONFIDENCE = 0.75
+OBJECTDETECTOR_CONFIDENCE = 0.49
 TRACKER_MAX_AGE = 30
 TRAINPATH = (DATA_DIR + os.path.sep + "training_data")
 UNKNOWN_FACES_PATH = (DATA_DIR + os.path.sep + "unknown_faces")
@@ -116,7 +116,7 @@ RED = (0, 0, 255)
 GREEN = (0, 255, 0)
 BLUE = (255, 0 ,0)
 RESIZE = 400
-METHODS = ['face_recgnition']
+METHODS = ['object_detection']
 HAARFILE = (DATA_DIR + os.path.sep + "haarcascade_frontalface_default.xml")
 SMILEFILE = (DATA_DIR + os.path.sep + "haarcascade_smile.xml")
 LBOFILE = (DATA_DIR + os.path.sep + "lbpcascade_frontalface.xml")
