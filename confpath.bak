@@ -4,6 +4,7 @@ setup_mode off
 logfile /var/log/motion/motion.log
 log_level 6
 log_type all
+videodevice /dev/video3
 v4l2_palette 17
 ; tunerdevice /dev/tuner0
 input 0
@@ -11,6 +12,8 @@ norm 1
 frequency 0
 power_line_frequency 2
 rotate 0
+width 640
+height 480
 framerate 10
 minimum_frame_time 0
 netcam_keepalive off
@@ -54,10 +57,6 @@ locate_motion_style redcross
 text_right %Y-%m-%d\n%T-%q
 ; text_left CAMERA %t
 text_changes off
-;ffmpeg_output_movies on
-on_movie_end bash /home/monkey/motionmovie.sh %f %K,%L,%i,%J
-output_pictures best
-on_picture_save bash /home/monkey/motionimage.sh %f
 text_event %Y%m%d%H%M%S
 text_double off
 ;exif_text %i%J/%K%L
@@ -83,5 +82,3 @@ webcontrol_authentication monkey:N0712731l
 camera /etc/motion/conf.d/camera1.conf
 camera /etc/motion/conf.d/camera2.conf
 camera /etc/motion/conf.d/camera3.conf
-; camera /etc/motion/conf.d/camera4.conf
-; camera /etc/motion/conf.d/camera5.conf

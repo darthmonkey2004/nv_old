@@ -416,6 +416,10 @@ for dev in "${devs[@]}"; do
 		fi
 	fi
 done
+motionrunning=$(pgrep motion)
+if [ -n "$motionrunning" ]; then
+	sudo kill $(pgrep motion)
+fi
 cam_ids=$(sqlite3 "$SQLDB" "select camera_id from cams;")
 confpath="/etc/motion/motion.conf"
 if [ -f "$confpath" ]; then
@@ -579,6 +583,8 @@ fi
 sudo touch /var/log/motion/motion.log
 sudo chown motion /var/log/motion/motion.log
 sudo chmod a+rwx /var/log/motion/motion.log
+echo "Starting motion..."
+sleep 2
 sudo motion -c /etc/motion/motion.conf
 cd "$HOME/.local/lib/python3.6/site-packages/nv"
 python3 mkhtml.py
