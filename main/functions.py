@@ -12,7 +12,6 @@ import face_recognition
 
 os.chdir(nv.EXEC_DIR)
 
-
 def getDaylight():
 	import time
 	from suntime import Sun
@@ -156,7 +155,7 @@ def readConfToShell():
 
 def writeConf(cameras, conf='None'):
 	if conf == 'None':
-		conf = CONF
+		conf = nv.CONF
 	with open(conf, 'wb') as f:
 		pickle.dump(cameras, f)
 
@@ -269,10 +268,10 @@ def recognize(imgpath):
 			return (None, None)
 		else:
 			name = "Unidentified Face"
-			result = face_recognition.compare_faces(KNOWN_ENCODINGS, test_face[0])
+			result = face_recognition.compare_faces(nv.KNOWN_ENCODINGS, test_face[0])
 			if True in result:
 				i = result.index(True)
-				namelist = list(ALL_FACE_ENCODINGS.keys())
+				namelist = list(nv.ALL_FACE_ENCODINGS.keys())
 				name = namelist[i]
 				splitter = '_'
 				name = name.split(splitter)[0]
@@ -295,10 +294,10 @@ def recognize_raw(img):
 		else:
 			name = "Unidentified Face"
 			face_location = face_recognition.face_locations(img)
-			result = face_recognition.compare_faces(KNOWN_ENCODINGS, test_face[0])
+			result = face_recognition.compare_faces(nv.KNOWN_ENCODINGS, test_face[0])
 			if True in result:
 				i = result.index(True)
-				names = list(ALL_FACE_ENCODINGS.keys())
+				names = list(nv.ALL_FACE_ENCODINGS.keys())
 				name = names[i]
 				splitter = '_'
 				name = name.split(splitter)[0]
@@ -332,6 +331,28 @@ def recognize_dir(path = None, outfile=False):
 				f.close()
 	return output
 	exit()
+
+def trainFace(name, encoding):
+	try:
+		all_face_encodings = nv.ALL_FACE_ENCODINGS
+		with open(nv.KNOWN_FACES_DB, 'rb') as f:
+			all_face_encodings = pickle.load(f)
+			print ("Encodings dat file loaded!")
+		f.close()
+		pos = 0
+		for item in list(all_face_encodings.keys()):
+			if name in item:
+				pos = pos + 1
+		ct = pos + 1
+		name = (name + "_" + str(ct))
+		all_face_encodings[name] = encoding
+		with open(nv.KNOWN_FACES_DB, 'wb') as f:
+			pickle.dump(all_face_encodings, f)
+			print ("Encodings dat file created!")
+		f.close()
+		return True
+	except:
+		return False
 
 def face_detect_cv2(imgpath):
 	if type(imgpath) == str:
@@ -388,7 +409,16 @@ def rmuser(name):
 		pickle.dump(ALL_FACE_ENCODINGS, f)
 	f.close()
 
-		
+
+
+def object_detect(img):
+	if type(img) == str:
+		img = cv2.imread(img)
+	det = nv.detector.detector()
+	name, box = det.object_detect(img)
+	if box is not None:
+		return (name, box)
+
 		
 def face_detect_raw(img):
 	gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)# convert to grayscale

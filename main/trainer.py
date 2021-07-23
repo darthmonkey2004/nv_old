@@ -15,6 +15,27 @@ def resizeImg(img, scale):
 	#print ((retimg.shape[1]), (retimg.shape[0]))
 	return retimg
 
+def trainFace(name, encoding):
+	try:
+		all_face_encodings = nv.ALL_FACE_ENCODINGS
+		with open(nv.KNOWN_FACES_DB, 'rb') as f:
+			all_face_encodings = pickle.load(f)
+			print ("Encodings dat file loaded!")
+		f.close()
+		pos = 0
+		for item in list(all_face_encodings.keys()):
+			if name in item:
+				pos = pos + 1
+		ct = pos + 1
+		name = (name + "_" + str(ct))
+		all_face_encodings[name] = encoding
+		with open(nv.KNOWN_FACES_DB, 'wb') as f:
+			pickle.dump(all_face_encodings, f)
+			print ("Encodings dat file created!")
+		f.close()
+		return True
+	except:
+		return False
 
 def train(path = None):
 	try:

@@ -577,7 +577,7 @@ if [ -f /var/log/motion.log ]; then
 	sudo rm /var/log/motion.log
 fi
 sudo touch /var/log/motion/motion.log
-sudo chown /var/log/motion/motion.log motion
+sudo chown motion /var/log/motion/motion.log
 sudo chmod a+rwx /var/log/motion/motion.log
 sudo motion -c /etc/motion/motion.conf
 cd "$HOME/.local/lib/python3.6/site-packages/nv"

@@ -26,7 +26,7 @@
 
 
 import nv
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, request, Response
 import cv2
 import pickle
 from os.path import expanduser, sep
@@ -138,6 +138,27 @@ def cam(id):
 	camfile = (str(id) + '.html')
 	return render_template(camfile)
 
+@app.route('/api/facerec', methods=['POST'])
+def rec():
+	r = request
+	nparr = np.fromstring(r.data, np.uint8)
+	# decode image
+	img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+	results = str(nv.recognize(img))
+	#response = {'message': 'image received'}
+	response = results.encode()
+	return Response(response=response, status=200, mimetype="application/json")
+
+@app.route('/api/facedetect', methods=['POST'])
+def fd():
+	r = request
+	nparr = np.fromstring(r.data, np.uint8)
+	# decode image
+	img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+	results = str(nv.recognize(img))
+	#response = {'message': 'image received'}
+	response = results.encode()
+	return Response(response=response, status=200, mimetype="application/json")
 
 if __name__ == '__main__':
 	import nv
