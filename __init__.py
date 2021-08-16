@@ -96,7 +96,7 @@ tod = getDaylight()
 #	OBJECTDETECTOR_CONFIDENCE = 0.69# found 0.49 to be a good number during night, 0.79 during day
 #if tod == "Night":
 #	OBJECTDETECTOR_CONFIDENCE = 0.49# found 0.49 to be a good number during night, 0.79 during day
-OBJECTDETECTOR_CONFIDENCE = 0.75
+OBJECTDETECTOR_CONFIDENCE = 0.45
 TRACKER_MAX_AGE = 30
 TRAINPATH = (DATA_DIR + os.path.sep + "training_data")
 UNKNOWN_FACES_PATH = (DATA_DIR + os.path.sep + "unknown_faces")
@@ -119,6 +119,7 @@ GREEN = (0, 255, 0)
 BLUE = (255, 0 ,0)
 RESIZE = 400
 METHODS = ['object_detection']
+TRACKER_TYPES = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'CSRT']
 HAARFILE = (DATA_DIR + os.path.sep + "haarcascade_frontalface_default.xml")
 SMILEFILE = (DATA_DIR + os.path.sep + "haarcascade_smile.xml")
 LBOFILE = (DATA_DIR + os.path.sep + "lbpcascade_frontalface.xml")
@@ -126,6 +127,7 @@ FD_CASCADE = cv2.CascadeClassifier(HAARFILE)
 VIEWER_BORDER_WIDTH = 2
 VIEWER_WIDTH = "100%"
 VIEWER_HEIGHT = "100%"
+(CV2_MAJOR_VERSION, CV2_MINOR_VERSION, CV2_SUBMINOR_VERSION) = (cv2.__version__).split('.')
 for camera_id in FEEDS:
 	IOFILES[camera_id] = (DATA_DIR + os.path.sep + str(camera_id) + ".io")
 #from nv.main import process as process

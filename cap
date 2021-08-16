@@ -1,0 +1,26 @@
+#!/bin/bash
+
+if [ -n "$1" ]; then
+	sudo kill $(pgrep ffmpeg)
+	sleep 2
+	nv
+else
+	nv kill
+	sleep 2
+	cams=(1=rtsp://192.168.2.5/12 2=rtsp://192.168.2.13/12 3=/dev/video3)
+	for cam in "${cams[@]}"; do
+		cam_id=$(echo "$cam" | cut -d '=' -f 1)
+		url=$(echo "$cam" | cut -d '=' -f 2)
+		dir="/var/storage/Videos/$cam_id"
+		if [ ! -d "$dir" ]; then
+			mkdir -p "$dir"
+		fi
+		cd "$dir"
+		IFS=$'\n' readarray ary <<< $(ls *.mp4)
+		ct="${#ary[@]}"
+		ct=$((ct + 1))
+		outfile="$dir/$ct.mp4"
+		ffmpeg -i "$url" -vcodec copy -r 60 -t 2600 -y "$outfile"& disown
+	done
+fi
+
