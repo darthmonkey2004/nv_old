@@ -61,9 +61,9 @@ from nv.main.functions import rmuser as rmuser
 from nv.main.functions import face_detect_raw as face_detect_raw
 from nv.main.functions import trainFace as trainFace
 from nv.main.functions import object_detect as object_detect
-
-
-		
+from nv.main.functions import save_face as save_face
+from nv.main.functions import sendMail as email
+from nv.main.functions import detector_trainer as detector_trainer		
 
 
 sep = os.path.sep
