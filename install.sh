@@ -47,16 +47,21 @@ cd "$dir/nv"
 hasnv=$(which nv)
 if [ -z "$hasnv" ]; then
 	echo "Copying nv executable to /usr/local/bin..."
-	sudo mv "$dir/nv/nv.run" "/usr/local/bin/nv"
+	sudo cp "$dir/nv/nv.run" "/usr/local/bin/nv"
 	sudo chmod a+x /usr/local/bin/nv
 fi
 hascap=$(which cap)
 if [ -z "$hascap" ]; then
 	echo "Copying capture metod to /usr/local/bin..."
-	sudo mv "$dir/nv/cap" "/usr/local/bin/cap"
+	sudo cp "$dir/nv/cap" "/usr/local/bin/cap"
 	sudo chmod a+x /usr/local/bin/cap
+hasscan=$(which scancams)
+if [ -z "$hasscan" ]; then
+	echo "Copying capture metod to /usr/local/bin..."
+	sudo cp "$dir/nv/scancams.sh" "/usr/local/bin/scancams"
+	sudo chmod a+x /usr/local/bin/scancams
 echo "Auto detecting cameras..."
-. "$dir/nv/scancams.sh"
+scancams
 echo "Configuring motion..."
 . "$dir/nv/mkconf.sh"
 sudo touch /var/log/motion/motion.log

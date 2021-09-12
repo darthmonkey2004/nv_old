@@ -81,7 +81,9 @@ getPort() {
 }
 
 scanNetwork() {
-	subnet="192.168.2"
+	if [ -z "$subnet" ]; then
+		subnet="192.168.1"
+	fi
 	iprange="$subnet.0/24"
 	readarray iplist <<< $(nmap -sn $iprange | grep "$subnet")
 	hosts=()
