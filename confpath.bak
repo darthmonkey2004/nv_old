@@ -80,3 +80,4 @@ webcontrol_html_output on
 webcontrol_authentication monkey:N0712731l
 
 camera /etc/motion/conf.d/camera1.conf
+camera /etc/motion/conf.d/camera2.conf

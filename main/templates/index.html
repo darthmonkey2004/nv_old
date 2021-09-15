@@ -26,6 +26,10 @@
 				background-image: url({{ url_for('video_feed', id='2') }}); background-repeat: no-repeat; background-size: 100% 100%;
 			 }
 
+			 #box_3{
+				background-image: url({{ url_for('video_feed', id='3') }}); background-repeat: no-repeat; background-size: 100% 100%;
+			 }
+
 
 
 	</style>
@@ -52,6 +56,10 @@
 
 			<div id="box2" ondragover="event.preventDefault()" ondrop="dropWord(event)">
 			<div class="mover" id="box_2" draggable="true" ondragstart="dragWord(event)"></div> 
+			</div>
+
+			<div id="box3" ondragover="event.preventDefault()" ondrop="dropWord(event)">
+			<div class="mover" id="box_3" draggable="true" ondragstart="dragWord(event)"></div> 
 			</div>
 
 		</div>

@@ -2,9 +2,28 @@
 
 
 #TODO: get previous cam entries from sql database instead of CONF file, until I can phase out CONF entirely in nv
+
+testOnline() {
+	offline=$(ping -c 1 192.168.2.16 | grep "100% packet loss")
+	if [ -n "$offline" ]; then
+		echo "0"
+	else
+		echo "1"
+	fi
+}
 testIpCam() {
 	ip="$1"
 	port="$2"
+	online=$(testOnline $ip)
+	if [ "$offline" = "0" ]; then
+		#echo "Camera appears offline. Waiting 30 seconds, will try again."
+		sleep 30
+		offline=$(ping -c 1 192.168.2.16 | grep "100% packet loss")
+		if [ -n "$offline" ]; then
+			echo "Camera still appears offline. Check connection and try again."
+			return
+		fi
+	fi
 	readarray ary <<< $(nmap -sV --script "rtsp-*" -p $port $ip | grep -v "Nmap done:")
 	go=''
 	stop=''
@@ -133,7 +152,28 @@ getDims() {
 	ret="($w, $h)"
 	echo "$ret"
 }
-
+if [ -n "$1" ]; then
+	if [ "$1" = "geturls" ] || [ "$1" = "-g" ] || [ "$1" = "--geturls" ]; then
+		echo "Searching for urls on '$2:$3'..."
+		urls=$(testIpCam "$2" "$3")
+		echo "Done!"
+		echo "Results:"
+		echo "$urls"
+		exit 0
+	elif [ "$1" = "help" ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+		echo "Usage: scancams (yup, that's it!)"
+		echo "Additional:"
+		echo "'scancams -g <host> <port>'/'--geturls <host> <port>': Uses nmap's rtsp url brute script on specific ip/port and returns a list of urls."
+		exit 0
+	elif [ "$1" = "skip" ] || [ "$1" = "-s" ] || [ "$1" = "--skip" ]; then
+		if [ -n "$2" ]; then
+			export SKIP_YES="$2"
+		else
+			export SKIP_YES=1
+		fi
+	fi
+fi
+export SKIP_YES=1
 export SQLDB=$(python3 -c "import nv; print(nv.SQLDB)")
 if [ -z "$SQLDB" ]; then
 	SQLDB="$HOME/.local/lib/python3.6/nv/nv.db"
@@ -193,25 +233,27 @@ for HOST_IP in "${hosts[@]}"; do
 	fi
 	SQLDB=$(python3 -c "import nv; print(nv.SQLDB)")
 	exists=$(sqlite3 "$SQLDB" "select camera_id from cams where host_ip = '$HOST_IP';")
-	echo "Exists: '$exists'"
 	#in some cases, the exists check can be ambiguous (i.e. host=192.168.2.1 inConf="192.168.2.10")..
 	if [ -n "$exists" ]; then
-		read -p "Ip address found in database, camera id '$exists'. Add anyway? " yn
-		if [ "$yn" = "y" ]; then
-			SKIP=0
+		if [ "$SKIP_YES" = "1" ]; then
+			export SKIP=1
 		else
-			SKIP=1
+			read -p "Camera exists! Add anyway?: " yn
+			if [ "$yn" = "y" ]; then
+				export SKIP=0
+			else
+				export SKIP=1
+			fi
 		fi
 	fi
-	echo "Skip = $SKIP"
 	if [ "$SKIP" = "0" ]; then
-		echo "Scanning host: '$HOST_IP'..."
 		PORT=$(getPort $HOST_IP)
 		if [ -z "$PORT" ]; then
 			export SKIP=1
 		fi
 	fi
 	if [ "$SKIP" = "0" ]; then
+		echo "Scanning host: '$HOST_IP'..."
 		if [ "$PORT" == "9876" ]; then
 			addurl=$(ipWebCam $HOST_IP $PORT)
 			dims=$(getDims "$addurl")
@@ -286,8 +328,18 @@ for HOST_IP in "${hosts[@]}"; do
 			echo "export HOST_IP=$HOST_IP" > "$HOST_SRCFILE"
 			echo "Good urls: $ct"
 			if [ "$ct" == 0 ]; then
-				echo "Couldn't find good urls. Skipping..."
-				export SKIP=1
+				read -p "Couldn't find good urls. Add one manually?" yn
+				if [ "$yn" = "y" ]; then
+					read -p "Enter url: " url
+					read -p "Enter resolution (w:h): " hw
+					w=$(echo "$hw" | cut -d ':' -f 1)
+					h=$(echo "$hw" | cut -d ':' -f 2)
+					urls+=("$url($h,$w)")
+					export SKIP=0
+				else
+					echo "No urls found for '$HOST_IP'. Skipping..."
+					export SKIP=1
+				fi
 			fi
 		fi
 	fi
@@ -349,15 +401,13 @@ for HOST_IP in "${hosts[@]}"; do
 		echo "export PTZ='$ptz'" >> "$HOST_SRCFILE"
 		if [ "$SKIP" = "0" ]; then
 			echo "Skip = '$SKIP'. Executing addCam..."
-			echo "$HOST_SRCFILE"
 			if [ ! -f "$HOST_SRCFILE" ]; then
 				echo "src file not found!"
 			else
-				cat "$HOST_SRCFILE"
 				source "$HOST_SRCFILE"
 				if [ -n "$HOST_IP" ] && [ -n "$SRC_DIMS" ] && [ -n "$SRC" ] && [ -n "$SRC_2" ] && [ -n "$SRC_2_DIMS" ] && [ -n "$CAM_ID" ] && [ -n "$FEED" ] && [ -n "$PTZ" ] && [ -n "$TYPE" ]; then
 					motion_conf="/etc/motion/conf.d/camera$CAM_ID.conf"
-					echo "INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
+					#echo "INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
 					sql="INSERT INTO cams(camera_id, type, src, src_2, src_dims, src_2_dims, host_ip, feed, motion_conf, ptz) VALUES('$CAM_ID', '$TYPE', '$SRC', '$SRC_2', '$SRC_DIMS', '$SRC_2_DIMS', '$HOST_IP', '$FEED', '$motion_conf', '$PTZ');"
 					results=$(sqlite3 "$SQLDB" "$sql")
 					if [ -n "$results" ]; then
@@ -547,8 +597,8 @@ for cam_id in "${cams[@]}"; do
 	type=$(echo "$data" | cut -d '|' -f 1)
 	src=$(echo "$data" | cut -d '|' -f 2)
 	src_dims=$(echo "$data" | cut -d '|' -f 3)
-	h=$(echo "$src_dims" | cut -d ' ' -f 1 | cut -d ',' -f 1 | cut -d '(' -f 2)
-	w=$(echo "$src_dims" | cut -d ' ' -f 2 | cut -d ')' -f 1)
+	w=$(echo "$src_dims" | cut -d ' ' -f 1 | cut -d ',' -f 1 | cut -d '(' -f 2)
+	h=$(echo "$src_dims" | cut -d ' ' -f 2 | cut -d ')' -f 1)
 	echo "height $h" > "$conf"
 	echo "width $w" >> "$conf"
 	echo "camera_id $cam_id" >> "$conf"
