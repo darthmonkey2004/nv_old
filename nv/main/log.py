@@ -2,7 +2,7 @@ import pickle
 import logging
 import datetime
 import os
-from nv.main.conf import readConf, writeConf
+#from nv.main.conf import readConf, writeConf
 
 
 global conf, LOGFILE, CONFFILE
@@ -27,19 +27,11 @@ class nv_logger():
 		lvl_fatal = getattr(logging, 'FATAL', None)
 		lvl_fatal = getattr(logging, 'INFO', None)
 		lvl_warning = getattr(logging, 'WARNING', None)
-		self.conf = readConf()
 		self.log_type = 'debug'
 		self.log_level = getattr(logging, self.log_type.upper(), None)
 		logging.basicConfig(filename=self.logfile, level=self.log_level)
 		self.msg = None
-		if self.conf['debug'] == None:
-			self.conf = np.initConf()
-			np.writeConf(self.conf)
-			np.log(f"Over wrote conf file (empty debug string. Data: {self.conf}", 'warning')
-		try:
-			self.debug = self.conf['debug']
-		except Exception as e:
-			print (f"Error in log.py: debug setting not in conf: {e}")
+		self.debug = True
 	def log_msg(self, *args):
 		#print (self.msg)
 		pos = -1
@@ -61,6 +53,7 @@ class nv_logger():
 		if self.debug == True:
 			print ("DEBUG MESSAGE:", self.msg)
 		if self.log_level == 10:#debug level
+			print(f"NV:DEBUG:{self.msg}")
 			logging.debug(self.msg)
 		elif self.log_level == 20:
 			logging.info(self.msg)

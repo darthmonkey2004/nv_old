@@ -8,7 +8,7 @@ import inspect, traceback
 import os
 from nv.main import detector as detector
 import pickle
-from nv.main.correlation_tracker_new import tracker_mgr
+from nv.main.correlation_tracker import tracker_mgr
 from nv.main.log import nv_logger
 from nv.main.conf import readConf, read_opts
 #from np.nv.trackable_object import TrackableObject
