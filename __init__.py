@@ -24,9 +24,10 @@ import face_recognition
 #dlib rectangle objects are (l,t,r,b)
 sep = os.path.sep
 userdir = os.path.expanduser('~')
-EXEC_DIR = (userdir + os.path.sep + ".local" + os.path.sep + "lib" + os.path.sep + "python3.6" + os.path.sep + "site-packages" + os.path.sep + "nv" + os.path.sep + "main")
+EXEC_DIR = (userdir + os.path.sep + ".local" + os.path.sep + "lib" + os.path.sep + "python3.8" + os.path.sep + "site-packages" + os.path.sep + "nv" + os.path.sep + "main")
 DATA_DIR=(userdir + os.path.sep + "Nicole" + os.path.sep + "NicVision")
 os.chdir(EXEC_DIR)
+
 from nv.main import servodriver as servo
 from nv.main import ipptz as ipptz
 from nv.main import serve as serve
@@ -63,20 +64,21 @@ from nv.main.functions import trainFace as trainFace
 from nv.main.functions import object_detect as object_detect
 from nv.main.functions import save_face as save_face
 from nv.main.functions import sendMail as email
-from nv.main.functions import detector_trainer as detector_trainer		
-
-
+from nv.main.functions import detector_trainer as detector_trainer
+from nv.main.conf import readConf, writeConf, nv_logger
+from nv.main.mkhtml import mkhtml
+log = nv_logger().log_msg
 sep = os.path.sep
 userdir = os.path.expanduser('~')
 EXEC_DIR = (userdir + os.path.sep + ".local" + os.path.sep + "lib" + os.path.sep + "python3.6" + os.path.sep + "site-packages" + os.path.sep + "nv" + os.path.sep + "main")
-DATA_DIR=(userdir + os.path.sep + "Nicole" + os.path.sep + "NicVision")
+DATA_DIR=(f"{userdir}{os.path.sep}.np{os.path.sep}nv")
 KNOWN_FACES_DB=(DATA_DIR + "/nv_known_faces.dat")
 #CONF=(DATA_DIR + "/nv.conf")
 #MOTION_CONF=(DATA_DIR + "/nv.motion_feeds.conf")
 CAP_EXEC = (EXEC_DIR + os.path.sep + "capture.py")
 PROTOTXT = (DATA_DIR + os.path.sep + 'MobileNetSSD_deploy.prototxt')
 MODEL = (DATA_DIR + os.path.sep + 'MobileNetSSD_deploy.caffemodel')
-SQLDB = (EXEC_DIR + os.path.sep + 'nv.db')
+SQLDB = (DATA_DIR + os.path.sep + 'nv.db')
 CAMERAS = {}
 FEEDS = {}
 PTZS = {}

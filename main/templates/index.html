@@ -4,31 +4,17 @@
 <head>
 	<title>CAMVIEWER</title>
 	<style type="text/css">
-	.camsection {
-		width=100%;
-		height=100%;
-	}
 	.mover  {
-		width:640px;
-		height:320px;
-		line-height:4em;
-		margin:10px;
-		padding:5px;
-		float:left;
-		border:1px dotted #333333;
-		text-align:center;
-	}
+		 width:640px; height:240px; line-height:4em; margin:10px; padding:5px; float:left; border:1px dotted #333333; text-align:center;
+			 }
 			 #box_1{
-				background-image: url({{ url_for('video_feed', id='1') }}); background-repeat: no-repeat; background-size: 100% 100%;
+				background-image: url({{ url_for('video_feed', id='1') }})
 			 }
 
 			 #box_2{
-				background-image: url({{ url_for('video_feed', id='2') }}); background-repeat: no-repeat; background-size: 100% 100%;
+				background-image: url({{ url_for('video_feed', id='2') }})
 			 }
 
-			 #box_3{
-				background-image: url({{ url_for('video_feed', id='3') }}); background-repeat: no-repeat; background-size: 100% 100%;
-			 }
 
 
 
@@ -48,7 +34,7 @@
 	</script> 
 	</head> 
 	<body>
-		<div class="camsection" id="camsection">
+		<div id="camsection">
 
 			<div id="box1" ondragover="event.preventDefault()" ondrop="dropWord(event)">
 			<div class="mover" id="box_1" draggable="true" ondragstart="dragWord(event)"></div> 
@@ -58,9 +44,6 @@
 			<div class="mover" id="box_2" draggable="true" ondragstart="dragWord(event)"></div> 
 			</div>
 
-			<div id="box3" ondragover="event.preventDefault()" ondrop="dropWord(event)">
-			<div class="mover" id="box_3" draggable="true" ondragstart="dragWord(event)"></div> 
-			</div>
 
 		</div>
 	</body> 

@@ -1,0 +1,249 @@
+from queue import Queue
+from threading import Thread
+import time
+import inspect
+import os
+from nv.main import detector_new as detector
+import pickle
+from nv.main.correlation_tracker_new import CorrelationTracker as CT
+from nv import log, DATA_DIR, readConf
+#from np.nv.trackable_object import TrackableObject
+import cv2
+
+
+def read_input(camera_id=None):
+	if camera_id == None:
+		camera_id = 0
+	iofiles = {}
+	iofiles[0] = '/home/monkey/.np/0.io.in'
+	id = int(camera_id)
+	name = str(iofiles[id])
+	lines = []
+	pos = 0
+	with open(name, 'rb') as f:
+		try:
+			data = pickle.load(f)
+		except:
+			data = []
+	f.close()
+	return data
+
+
+def flush_input(camera_id=None):
+	if camera_id == None:
+		camera_id = 0
+	iofile = f"{DATA_DIR}{os.path.sep}0.io.in"
+	outData = []
+	with open(iofile, 'wb') as f:
+		pickle.dump(outData, f)
+	f.close()
+
+
+def writeIoFile(camera_id, outData):
+	iofile = f"{DATA_DIR}{os.path.sep}0.io"
+	with open(iofile, 'wb') as f:
+		pickle.dump(outData, f)
+	f.close()
+
+
+
+def ensure_dir(directory):
+	if not os.path.exists(directory):
+        	os.makedirs(directory)
+
+def writeOutImg(frame, path=None, name=None):
+	try:
+		name, confidence = (name.split('_')[0]), (name.split('_')[1])
+	except:
+		name, confidence = (name, "N/A")
+	if name == None:
+		name = "Unknown Face"
+	if path == None:
+		path = f"/home/monkey/.np/nv/Unrecognized Face"
+	ensure_dir(path)
+	ts = time.time()
+	fname = f"{path}{os.path.sep}{name}.{ts}.jpg"
+	#frame.save(fname)
+	cv2.imwrite(fname, frame)
+
+def init_cap(src, attempts=1):
+	cap = None
+	pos = 1
+	try:
+		cap = cv2.VideoCapture(src)
+	except Exception as e:
+		log(f"PROCESS_THREAD(Exception):{camera_id}::Unable to initilize capture device ({src})! Details: {e}", 'error')
+		return None
+	while pos <= attempts:
+		try:
+			ret, img = cap.read()
+			if ret:
+				return cap
+			else:
+				pos += 1
+				log(f"Capture device initilization failed for '{src}'. Retrying...({pos} of {attempts}", 'warning')
+				time.sleep(0.5)
+		except Exception as e:
+			log(f"PROCESS_THREAD(Exception):{camera_id}::Capture device is gone! (Disconnected?)", 'error')
+			try:
+				cap.release()
+			except:
+				pass
+			return
+	if cap is not None:
+		return cap
+	else:
+		log(f"PROCESS_THREAD:{camera_id}::Capture exceeded max attempts. Releasing and aborting...", 'error')
+		cap.release()
+		return
+			
+				
+def process(camera_id, input_q, out_q):
+	camera_id = int(camera_id)
+	conf = readConf()
+	src = conf[camera_id]['src']
+	CLASSES = ["background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow", "diningtable", "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
+	net = cv2.dnn.readNetFromCaffe('/home/monkey/.np/nv/MobileNetSSD_deploy.prototxt', '/home/monkey/.np/nv/MobileNetSSD_deploy.caffemodel')
+	W = None
+	H = None
+	trackers = {}
+	trackableObjects = {}
+	totalFrames = 0
+	totalDown = 0
+	totalUp = 0
+	log(f"PROCESS_THREAD:{camera_id}::initializing capture...", 'info')
+	vs = init_cap(src)
+	log(f"PROCESS_THREAD:{camera_id}::capture initialized!", 'info')
+	output = []
+	status = "Waiting"
+	writeout = None
+	flush_input(camera_id)
+	writeIoFile(camera_id, [])
+	try:
+		face_cascade = cv2.CascadeClassifier('/home/monkey/.np/nv/haarcascade_frontalface_default.xml')
+		log(f"PROCESS_THREAD:{camera_id}::Facial classifier read!", 'info')
+	except Exception as e:
+		log(f"PROCESS_THREAD:{camera_id}::Couldn't read face cascade: {e}", 'error')
+	tracker = None
+	try:
+		log(f"PROCESS_THREAD:{camera_id}::Getting detector...", 'info')
+		det = detector.detector()
+	except Exception as e:
+		log(f"PROCESS_THREAD(Exception!):{camera_id}::Unable to get detector:{e}", 'error')
+	name = None
+	skip_frames = 75
+	METHODS = ['object_detection', 'face_recognition']
+	log(f"PROCESS_THREAD:{camera_id}::Methods={METHODS}", 'info')
+	track_limit = 3
+	object_id = 0
+	idle = 0
+	idle_ct = 60
+	while True:
+		totalFrames += 1
+		output = []
+		try:
+			ret, img = input_q.get()
+		except:
+			input_q.task_done()
+			out_q.task_done()
+		name = None
+		box = None
+		names = []
+		if ret == False:
+			vs.release()
+			log(f"PROCESS_THREAD(Warning):{camera_id}::Failed to get image from {src}! Re-initializing...", 'warning')
+			vs = init_cap(src, 3)
+			if vs is None:
+				log(f"PROCESS_THREAD:{camera_id}::Device is offline! Exiting...", 'info')
+				out_q.task_done()
+		if totalFrames % skip_frames == 0:
+			data = read_input()
+			if data is not None and data != []:
+				if type(data) != list:
+					pass
+				else:
+					for line in data:
+						name, box = line
+						tracker = CT(box, frame)
+						object_id = tracker.id
+						trackers[object_id] = name, tracker
+						out = (name, box)
+						output.append(out)
+				flush_input()
+	#if not output found from either tracker or detection methods, then upload null to output to remove stale draw boxes on image feed.
+			if "face_detection" in METHODS:
+				dname, dbox = det.face_detect(frame)
+				if dbox is not None:
+					log(f"PROCESS_THREAD:{camera_id}::Face found!", 'info')
+					box = dbox
+					name = dname
+					tracker = CT(box, frame)
+					object_id = tracker.id
+					trackers[object_id] = (name, tracker)
+					output.append(out)
+					writeOutImg(frame)
+			if "object_detection" in METHODS:
+				oname, obox = det.object_detect(frame)
+				if obox is not None:
+					name = oname.split('_')[0]
+					box = obox
+					if "person" in name:
+						name = "Unrecognized Face"
+						recname, recbox = det.recognize(frame)
+						if recname is not None:
+							name = recname
+							log(f"PROCESS_THREAD:{camera_id}::face recognized! Name: {name}", 'info')
+							box = recbox
+							path = f"/home/monkey/.np/nv/Recognized Faces"
+							writeOutImg(frame, path, name)
+						else:
+							log(f"PROCESS_THREAD:{camera_id}::Unknown Face: {box}", 'info')
+							path = f"/home/monkey/.np/nv/Unrecognized Face"
+							writeOutImg(frame, path, name)
+					tracker = CT(box, frame)
+					object_id = tracker.id
+					trackers[object_id] = (name, tracker)
+					out = (name, box)
+					output.append(out)
+			if "face_recognition" in METHODS:
+				tname, tbox = det.recognize(frame)
+				if tbox is not None:
+					name = tname
+					log(f"PROCESS_THREAD:{camera_id}::face recognized! Name:{name}", 'info')
+					box = tbox
+					out = (name, box)
+					tracker = CT(tbox, frame)
+					output.append(out)
+					object_id = tracker.id
+					trackers[object_id] = (name, tracker)
+				#writeOutImg(text, frame)	
+			to_del = {}
+			for object_id in trackers.keys():
+				name, tracker = trackers[object_id]
+				if '_' in name:
+					name = name.split('_')[0]#parse confidence (from detector) out of string
+				age, confidence, rect = tracker.predict(frame)#calulcate age of object
+				out = tracker.update(rect, frame)
+				#x, y, w, h = [int(v) for v in box]
+				#cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+				confidence = (confidence / 10)
+				if box is not None:
+					out = (name, box)
+					output.append(out)
+				elif box is None or confidence < 0.5 or age > tracker.max_age:
+					to_del[object_id] = object_id#...flag object for removal
+					log(f"PROCESS_THREAD:{camera_id}::Expired object:{object_id}", 'info')
+			for object_id in to_del.keys():
+				del trackers[object_id]
+			if output != []:
+			#	writeIoFile(camera_id, output)
+				out_q.put(camera_id, output)
+		#totalFrames = totalFrames + 1
+
+if __name__ == "__main__":
+	import sys
+	try:
+		camera_id = sys.argv[1]
+	except:
+		camera_id = 0
+	process(camera_id)

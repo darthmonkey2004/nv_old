@@ -54,7 +54,8 @@ def gen_frames(camera_id, iofiles, outfile=False):
 	camera_state = False
 	is_tracking = False
 	camera_id = int(camera_id)
-	iofile=iofiles[camera_id]
+	#iofile=iofiles[camera_id]
+	iofile='/home/monkey/.np/0.io'
 	src = nv.FEEDS[camera_id]
 	cap = cv2.VideoCapture(src)
 	WIDTH = int(cap.get(3))
@@ -68,8 +69,8 @@ def gen_frames(camera_id, iofiles, outfile=False):
 		print (fname)
 
 		writer = cv2.VideoWriter(fname, cv2.VideoWriter_fourcc('M','J','P','G'), 10, (frame_width,frame_height))
-	out = (None, None)
-	nv.writeIoFile(camera_id, [out])
+	out = []
+	#nv.writeIoFile(camera_id, [out])
 	while True:
 		data = nv.readIoFile(camera_id)
 		if data is None:

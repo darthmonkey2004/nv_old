@@ -258,7 +258,8 @@ def url_addAuth(user,pw,url):
 
 def readIoFile(camera_id):
 	id = int(camera_id)
-	name = str(nv.IOFILES[id])
+	#name = str(nv.IOFILES[id])
+	name='/home/monkey/.np/0.io'
 	lines = []
 	pos = 0
 	with open(name, 'rb') as f:

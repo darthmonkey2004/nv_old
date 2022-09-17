@@ -1,0 +1,110 @@
+import datetime
+import os
+import pickle
+import pathlib
+import logging
+
+
+user = os.path.expanduser("~")
+DATA_DIR = (f"{user}{os.path.sep}.np{os.path.sep}nv")
+CONFFILE = f"{DATA_DIR}{os.path.sep}nv.conf"
+LOGFILE = f"{DATA_DIR}{os.path.sep}nv.log"
+
+
+def readConf(path=None):
+	if path == None:
+		path = CONFFILE
+	try:
+
+		with open(path, 'rb') as f:
+			cams = pickle.load(f)
+		f.close()
+		return cams
+	except Exception as e:
+		#log(f"Warning: conf file not found! Using defaults...", 'warning')
+		camera_id = 0
+		cams = {}
+		cams[camera_id] = {}
+		cams[camera_id]['addr'] = '192.168.2.4'
+		cams[camera_id]['port'] = 8080
+		cams[camera_id]['url'] = (f"http://{cams[0]['addr']}:{cams[0]['port']}/Camera_{camera_id}.jpeg")
+		cams[camera_id]['w'] = 640
+		cams[camera_id]['h'] = 352
+		cams[camera_id]['src'] = 'rtsp://192.168.2.12/12'
+		cams[camera_id]['method'] = 'cv2'
+		cams['debug'] = True
+		with open(path, 'wb') as f:
+			pickle.dump(cams, f)
+		f.close()
+		return cams
+conf = readConf()
+class nv_logger():
+	def __init__(self):
+		self.logfile = LOGFILE
+		lvl_debug = getattr(logging, 'DEBUG', None)
+		lvl_critical = getattr(logging, 'CRITICAL', None)
+		lvl_error = getattr(logging, 'ERROR', None)
+		lvl_fatal = getattr(logging, 'FATAL', None)
+		lvl_fatal = getattr(logging, 'INFO', None)
+		lvl_warning = getattr(logging, 'WARNING', None)
+		self.conf = readConf()
+		self.log_type = 'debug'
+		self.log_level = getattr(logging, self.log_type.upper(), None)
+		logging.basicConfig(filename=self.logfile, level=self.log_level)
+		self.msg = None
+
+		try:
+			self.debug = self.conf['debug']
+		except Exception as e:
+			print (f"Error in log.py: debug setting not in conf: {e}")
+	def log_msg(self, *args):
+		#print (self.msg)
+		pos = -1
+		t = datetime.datetime.now()
+		ts = (str(t.day) + "-" + str(t.month) + "-" + str(t.year) + " " + str(t.hour) + ":" + str(t.minute) + ":" + str(t.second) + ":" + str(t.microsecond))
+		for arg in args:
+			pos = pos + 1
+			if pos == 0:
+				self.msg = (ts + "--" + str(arg))
+			elif pos == 1:
+				self.log_type = arg
+				self.log_level = getattr(logging, self.log_type.upper(), None)
+				logging.basicConfig(filename=self.logfile, level=self.log_level)
+		if not isinstance(self.log_level, int):
+			raise ValueError('Invalid log level: %s' % self.log_type)
+			return
+		if self.msg == None:
+			raise ValueError('No message data provided!')
+		if self.debug == True:
+			print ("DEBUG MESSAGE:", self.msg)
+		if self.log_level == 10:#debug level
+			logging.debug(self.msg)
+		elif self.log_level == 20:
+			logging.info(self.msg)
+		elif self.log_level == 30:
+			logging.warning(self.msg)
+		elif self.log_level == 40:
+			logging.error(self.msg)
+			try:
+				print("NicVision logged an error:", self.msg)
+			except Exception as e:
+				ouch=("Unable to print error message, background process(?)", self.msg, e)
+				logging.error(ouch)
+				raise RuntimeError(ouch) from e
+				print (f"Log class exiting with errors: {e}")
+				return
+		return
+log = nv_logger().log_msg
+def writeConf(data):
+	try:
+		with open(CONFFILE, 'wb') as f:
+			pickle.dump(data, f)
+		f.close()
+		
+		log('core.py, writeConf: Conf updated!', 'info')
+		return True
+	except Exception as e:
+		print(f"Exception in conf.py, writeConf, line 83:{e}")
+		return False
+
+

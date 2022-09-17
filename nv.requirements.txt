@@ -1,1 +1,13 @@
-flask imagezmq face_recognition docopt centroid-tracker numpy scipy imutils django opencv-contrib-python
+flask
+imagezmq
+face_recognition
+docopt
+centroid-tracker
+numpy
+scipy
+imutils
+django
+opencv-contrib-python
+pyserial
+suntime
+face_recognition

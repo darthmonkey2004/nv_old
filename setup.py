@@ -6,6 +6,8 @@ setup(name='nv',
       url='http://github.com/darthmonkey2004/nv',
       author='Matt McClellan',
       author_email='darthmonkey2004@gmail.com',
-      license='MIT',
-      packages=['nv'],
-      zip_safe=False)
+      license='GNU',
+      packages=['nv', 'nv.oakdlite_fr'],
+      package_dir={'nv': 'nv', 'nv.oakdlite_fr': 'oakdlite_fr'},
+      scripts=['nv/scripts/scancams.sh'],
+      )

@@ -60,7 +60,9 @@ class detector:
 			name = self.namelist[i]
 			splitter = '_'
 			self.name = name.split(splitter)[0]
-			return (self.name, self.box[0])
+			t, r, b, l = self.box[0]
+			box = (l, t, r, b)
+			return (self.name, box)
 
 	def object_detect(self, imgpath):
 		if type(imgpath) == str:
