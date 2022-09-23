@@ -3,9 +3,10 @@ import PySimpleGUI as sg
 from nv.main.conf import read_opts, init_opts, write_opts
 import subprocess
 from nv.main.log import nv_logger
+from nv.utils.settings_event_handler import event_mgr
 active_windows = []
-
-opts = read_opts(0)
+camera_id = 0
+opts = read_opts(camera_id)
 logger = nv_logger().log_msg
 
 def log(msg, _type=None):
@@ -70,8 +71,9 @@ def settings(section=None):
 	elif section == 'Server Settings':
 		#------------------------------------Frame Server
 		layout2 = []
-		addresses = [opts['addr'], '127.0.0.1']
-		settings_server_addr = [[sg.Text('Server Address:'), sg.Combo(addresses, default_value=opts['addr'], size=(None, None), auto_size_text=True, bind_return_key=True, change_submits=True, enable_events=True, key='-SERVER_ADDRESS-')]]
+		addr = opts['ptz']['addr']
+		addresses = [addr, '127.0.0.1']
+		settings_server_addr = [[sg.Text('Server Address:'), sg.Combo(addresses, default_value=addr, size=(None, None), auto_size_text=True, bind_return_key=True, change_submits=True, enable_events=True, key='-SERVER_ADDRESS-')]]
 		settings_server_port = [[sg.Text('Server Port:'), sg.Input(default_text=opts['port'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-SERVER_PORT-', expand_x=True)]]
 		layout2.append(settings_server_addr)
 		layout2.append(settings_server_port)
@@ -84,13 +86,13 @@ def settings(section=None):
 		#------------------------------------Frame Capture
 		layout3 = []
 		settings_camera_id = [[sg.Text('Camera ID:'), sg.Input(default_text="0", size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-CAMERA_ID-', expand_x=True)]]
-		settings_camera_src = [[sg.Text('Source (url/device):'), sg.Input(default_text=opts['src'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-CAMERA_ID_SRC-', expand_x=True)]]
-		settings_camera_h = [[sg.Text('Capture Height:'), sg.Input(default_text=opts['H'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-CAMERA_H-', expand_x=True)]]
-		settings_camera_w = [[sg.Text('Capture Width:'), sg.Input(default_text=opts['W'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-CAMERA_W-', expand_x=True)]]
+		settings_camera_src = [[sg.Text('Source (url/device):'), sg.Input(default_text=opts[camera_id]['url'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-CAMERA_ID_SRC-', expand_x=True)]]
+		settings_camera_h = [[sg.Text('Capture Height:'), sg.Input(default_text=opts[camera_id]['H'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-CAMERA_H-', expand_x=True)]]
+		settings_camera_w = [[sg.Text('Capture Width:'), sg.Input(default_text=opts[camera_id]['W'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-CAMERA_W-', expand_x=True)]]
 		line1 = [[settings_camera_id, settings_camera_h, settings_camera_w]]
 		layout3.append(line1)
 		layout3.append(settings_camera_src)
-		camera_url = f"http://{opts['addr']}:{opts['port']}/Camera_{opts['camera_id']}.mjpg"
+		camera_url = f"http://{opts['ptz']['addr']}:{opts['port']}/Camera_{opts['camera_id']}.mjpg"
 		settings_camera_url = [[sg.Text('MJPG Url:'), sg.Input(default_text=camera_url, size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-CAMERA_URL-', expand_x=True)]]
 		layout3.append(settings_camera_url)
 		capture_methods = ['cv2', 'pil', 'raw', 'zmq', 'q']
@@ -122,11 +124,11 @@ def settings(section=None):
 		#---------------------------------------Facial and Detection Options
 		##---------------------------------------Object Detection
 		layout5 = []
-		settings_set_det_provider = [[sg.Text('Detection Provider:'), sg.Combo(opts['detector']['all_providers'], default_value=opts['detector']['provider'], size=(None, None), auto_size_text=True, bind_return_key=True, change_submits=True, enable_events=True, key='-CAPTURE_METHOD-')]]
-		settings_set_det_methods = [[sg.Text('Detection Methods:'), sg.Listbox(opts['detector']['ALL_METHODS'], default_values=opts['detector']['METHODS'], select_mode='multiple', change_submits=True, enable_events=True, size=(30, 5), auto_size_text=True, key='-ACTIVE_DETECTION_METHODS-', expand_x=True, expand_y=False)]]
+		settings_set_det_provider = [[sg.Text('Detection Provider:'), sg.Combo(opts['detector']['all_providers'], default_value=opts['detector']['provider'], size=(None, None), auto_size_text=True, bind_return_key=True, change_submits=True, enable_events=True, key='-DETECTION_PROVIDER-')]]
+		settings_set_det_methods = [[sg.Text('Detection Methods:'), sg.Listbox(opts['detector']['ALL_METHODS'], select_mode='multiple', change_submits=True, enable_events=True, size=(30, 5), auto_size_text=True, key='-ALL_DETECTION_METHODS-', expand_x=True, expand_y=False), sg.Listbox(opts['detector']['METHODS'], select_mode='multiple', change_submits=True, enable_events=True, size=(30, 5), auto_size_text=True, key='-ACTIVE_DETECTION_METHODS-', expand_x=True, expand_y=False), sg.Button('Add Method'), sg.Button('Remove Method')]]
 		settings_set_det_prototxt = [[sg.Text('Path to prototxt:'), sg.Input(default_text=opts['detector']['object_detector']['prototxt'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-DETECTOR_PROTOTXT-', expand_x=True)]]
 		settings_set_det_model = [[sg.Text('Path to model:'), sg.Input(default_text=opts['detector']['object_detector']['model'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-DETECTOR_MODEL-', expand_x=True)]]
-		settings_set_det_targets = [[sg.Text('Target classes (filter):'), sg.Listbox(opts['detector']['object_detector']['classes'], default_values=opts['detector']['object_detector']['targets'], select_mode='multiple', change_submits=True, enable_events=True, size=(None, None), auto_size_text=True, key='-DETECTION_TARGETS-', expand_x=False, expand_y=False)]]
+		settings_set_det_targets = [[sg.Text('Target classes (filter):'), sg.Listbox(opts['detector']['object_detector']['classes'], default_values=opts['detector']['object_detector']['targets'], select_mode='multiple', change_submits=True, enable_events=True, size=(30, 5), auto_size_text=True, key='-ALL_DETECTION_TARGETS-', expand_x=False, expand_y=False), sg.Listbox(opts['detector']['object_detector']['targets'], select_mode='multiple', change_submits=True, enable_events=True, size=(30, 5), auto_size_text=True, key='-DETECTION_TARGETS-', expand_x=False, expand_y=False), sg.Button('Add Target'), sg.Button('Remove Target')]]
 		settings_set_det_confidence = [[sg.Text('Detection confidence threshold:'), sg.Input(default_text=opts['detector']['object_detector']['confidence'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-DETECTOR_CONFIDENCE_THRESHOLD-', expand_x=True)]]
 		line1 = settings_set_det_provider, settings_set_det_prototxt, settings_set_det_model, settings_set_det_confidence
 		layout5.append(line1)
@@ -146,7 +148,7 @@ def settings(section=None):
 		settings_scale_factor = [[sg.Text('Scale factor:'), sg.Input(default_text=opts['detector']['fd_cv2']['scale_factor'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-FD_SCALE_FACTOR-', expand_x=True)]]
 		settings_minimum_neighbors = [[sg.Text('Minimum neighbors:'), sg.Input(default_text=opts['detector']['fd_cv2']['minimum_neighbors'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-FD_MINIMUM_NEIGHBORS-', expand_x=True)]]
 		fr_dlib_models = ['hog', 'cnn']
-		settings_fr_dlib_model = [[sg.Text('DLIB Model:'), sg.Listbox(fr_dlib_models, default_values=opts['detector']['fr_dlib']['model'], select_mode='multiple', change_submits=True, enable_events=True, size=(None, None), auto_size_text=True, key='-FACE_RECOGNITION_MODELS-', expand_x=False, expand_y=False)]]
+		settings_fr_dlib_model = [[sg.Text('DLIB Detection Tolerance:'), sg.Input(default_text=opts['detector']['fr_dlib']['tolerance'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-FR_DLIB_TOLERANCE-', expand_x=True), sg.Text('DLIB Recognition Model:'), sg.Listbox(fr_dlib_models, default_values=opts['detector']['fr_dlib']['model'], select_mode='multiple', change_submits=True, enable_events=True, size=(None, None), auto_size_text=True, key='-FACE_RECOGNITION_MODELS-', expand_x=False, expand_y=False)]]
 		settings_fr_cv2_dbpath = [[sg.Text('CV2 Saved Faces database:'), sg.Input(default_text=opts['detector']['fr_cv2']['dbpath'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-FR_CV2_DBPATH-', expand_x=True)]]
 		line = settings_scale_factor, settings_minimum_neighbors
 		layout6.append(line)
@@ -183,7 +185,7 @@ def quit(opts):
 	write_opts(opts)
 
 def event_loop():
-	global active_windows
+	global active_windows, opts
 	titles = ['PTZ Settings', 'Face Detection Settings', 'Object Detection Settings', 'Image Output Settings', 'Capture Settings', 'Server Settings', 'General Settings']
 	sections = ['ptz', 'face_detection', 'object_detection', 'image_output', 'capture', 'server', 'general', None]
 	exit = False
@@ -221,7 +223,7 @@ def event_loop():
 					log(f"All windows closed! Exiting...", 'info')
 					exit = True
 			else:
-				log(f"Unknown option: {event}", 'warning')
+				opts = event_mgr(window, event, opts, values)
 				
 
 if __name__ == "__main__":
@@ -231,3 +233,4 @@ if __name__ == "__main__":
 	except:
 		section = 'general'
 	win = settings(section)
+	event_loop()

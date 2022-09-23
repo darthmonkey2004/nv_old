@@ -4,10 +4,6 @@ import v4l2
 import urllib.request
 import argparse
 
-#wav="http://192.168.2.8:9876/audio.wav"# the audio stream in Wav format.
-#aac="http://192.168.2.8:9876/audio.aac"# the audio stream in AAC format (if supported by hardware).
-#opus="http://192.168.2.8:9876/audio.opus"# the audio stream in Opus format.
-#url = "http://192.168.2.8:9876/videofeed"
 
 parser = argparse.ArgumentParser(
     description='NicVision: IP Camera Facial Recognition',

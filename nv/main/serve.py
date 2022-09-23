@@ -1,3 +1,4 @@
+import subprocess
 from nv.main.browser import start_thread
 import psutil
 from queue import Queue
@@ -400,7 +401,18 @@ def run_server(camera_id):
 	print("Starting")
 	opts = read_opts(camera_id)
 	mjpg_in_q, proc_in_q, proc_out_q = setup()
-	cap = cv2.VideoCapture(opts['src'])
+	has_auth = opts['src']['has_auth']
+	if has_auth:
+		try:
+			pw = subprocess.check_output(f"secret-tool lookup porchcam pw", shell=True).decode().strip()
+		except:
+			log("Couldn't get password from store! Enter it now:", 'info')
+			subprocess.call(f"secret-tool store --label=\"NV\" porchcam pw", shell=True)
+			pw = subprocess.check_output(f"secret-tool lookup porchcam pw", shell=True).decode().strip()
+		url = f"rtsp://{opts['src']['user']}:{pw}@{opts['src']['url'].split('://')[1]}"
+	else:
+		url = opts['src']['url']
+	cap = cv2.VideoCapture(url)
 	width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
 	height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 	dets = []

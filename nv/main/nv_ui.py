@@ -9,7 +9,10 @@ import PySimpleGUI as sg
 from nv.main.log import nv_logger
 import sys
 #import traceback
+from nv.utils.settings_menu import *
 from nv.utils.keymap import ctk
+from nv import quit as quit_nv
+from nv.utils.new_camera import *
 
 logger = nv_logger().log_msg
 def log(msg, _type=None):
@@ -27,18 +30,22 @@ def ptz_ui(opts):
 	location = opts['ptz']['window']['location']
 	size = opts['ptz']['window']['size']
 	layout = []
+	settings_menus = ['PTZ Settings', 'Face Detection Settings', 'Object Detection Settings', 'Image Output Settings', 'Capture Settings', 'Server Settings', 'General Settings']
+	menu_def = [['Settings', [settings_menus]]]
+	menu = [sg.MenubarCustom(menu_def, tearoff=True, key='-menubar_key-'), sg.Button('Add Camera')]
 	line1 = [sg.Button('Up Left'), sg.Button('Up'), sg.Button('Up Right')]
 	line2 = [sg.Button('Left'), sg.Button('Stop'), sg.Button('Right')]
 	line3 = [sg.Button('Down Left'), sg.Button('Down'), sg.Button('Down Right')]
 	keyboard_checkbox = [sg.Button('Save Window Location'), sg.Checkbox('Keyboard Control:', default=False, enable_events=True, key='-KEYBOARD_CONTROL-')]
 	current_memory_box = [sg.Text(psutil.virtual_memory().percent, key='CURRENT_MEMORY')]
+	layout.append(menu)
 	layout.append(line1)
 	layout.append(line2)
 	layout.append(line3)
 	layout.append(keyboard_checkbox)
 	layout.append(current_memory_box)
 	presets = []
-	for i in range(0, 99):
+	for i in range(0, 4):
 		presets.append(i)
 	preset_line = [sg.Text('Presets:'), sg.Combo(presets, 0, enable_events=True, key='-SELECT_PRESET-'), sg.Button('Set'), sg.Button('Goto')]
 	layout.append(preset_line)
@@ -50,8 +57,10 @@ def ptz_ui(opts):
 def quit(opts):
 	log(f"UI: Writing opts file (on exit)...", 'info')
 	write_opts(opts)
+	quit_nv()
 
 def ui_loop(win=None, ptz=None, opts=None):
+	settings_menus = ['PTZ Settings', 'Face Detection Settings', 'Object Detection Settings', 'Image Output Settings', 'Capture Settings', 'Server Settings', 'General Settings']
 	events = opts['ptz']['events']
 	tour_wait_low = opts['ptz']['tour_wait_low']
 	tour_wait_med = opts['ptz']['tour_wait_med']
@@ -75,6 +84,7 @@ def ui_loop(win=None, ptz=None, opts=None):
 	if events is True:
 		ptz.start_loop()
 		ptz.set_speed(ptz_speed)
+	preset = None
 	while True:
 		if tour == True:
 			if tour_started is None:
@@ -114,6 +124,16 @@ def ui_loop(win=None, ptz=None, opts=None):
 		if event == '__TIMEOUT__':
 			pass
 		else:
+			settings_menus = ['PTZ Settings', 'Face Detection Settings', 'Object Detection Settings', 'Image Output Settings', 'Capture Settings', 'Server Settings', 'General Settings']
+			if event in settings_menus:
+				win.hide()
+				settings(event)
+				event_loop()
+				win.un_hide()
+			elif event == 'Add Camera':
+				win.hide()
+				new_camera_loop()
+				win.un_hide()
 			if ptz.opts['debug'] == True:
 				log(f"EVENT: {event}", 'info')
 			if event == 'Quit':
@@ -132,6 +152,15 @@ def ui_loop(win=None, ptz=None, opts=None):
 				tour_started = None
 				tour_dest = 0
 				log(f"Tour stopped!", 'info')
+			elif event == '-SELECT_PRESET-':
+				preset = values[event]
+				print(f"Selected preset: {preset}")
+			elif event == 'Goto':
+				if preset == None:
+					preset = 0
+				else:
+					ptz.goto(preset)
+				print(f"Move to preset: {preset}")
 			elif event == 'Save Window Location':
 				coords = window.CurrentLocation()
 				opts['ptz']['window']['location'] = coords
@@ -147,7 +176,7 @@ def ui_loop(win=None, ptz=None, opts=None):
 			else:
 				print(event)
 
-
+	
 
 
 def start(opts):

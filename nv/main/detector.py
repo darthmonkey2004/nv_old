@@ -126,8 +126,9 @@ class detector:
 		self.t = 0
 		self.r = 0
 		self.b = 0
-		self.H = opts['H']
-		self.W = opts['W']
+		camera_id = opts['camera_id']
+		self.H = opts[camera_id]['H']
+		self.W = opts[camera_id]['W']
 		self.tolerance = opts['detector']['fr']['tolerance']
 		self.model = opts['detector']['fr']['model']
 		self.mean = (127.5, 127.5, 127.5)

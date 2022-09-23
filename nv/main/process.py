@@ -53,8 +53,8 @@ def process(opts=None, input_q=None, out_q=None):
 	#src = opts['src']
 	#CLASSES = opts['detector']['object_detector']['classes']
 	#net = cv2.dnn.readNetFromCaffe(opts['detector']['object_detector']['prototxt'] , opts['detector']['object_detector']['model'])
-	W = opts['H'] 
-	H = opts['W']
+	W = opts[camera_id]['W']
+	H = opts[camera_id]['H']
 	trackers = []
 	trackableObjects = {}
 	totalFrames = 0

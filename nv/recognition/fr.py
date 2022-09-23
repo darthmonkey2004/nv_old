@@ -78,22 +78,25 @@ def recognize(img):
 		return None, None
 	h, w, c = image.shape
 	if w > h:
-		r = w / 250
-		nw = 250
+		r = w / 640
+		nw = 640
 		nh = int(h / r)
 	elif h > w:
-		r = h / 250
-		nh = 250
+		r = h / 640
+		nh = 640
 		nw = int(w / r)
 	else:
-		nw = 250
-		nh = 250
-	image = cv2.resize(image, (nw, nh))
+		nw = 640
+		nh = 640
+	#image = cv2.resize(image, (nw, nh))
 	rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 	gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+	faces = None
 	
-	#try:
-	n, faces = detector.face_detect(image)
+	try:
+		n, faces, confidence = detector.face_detect(image)[0]
+	except:
+		n, face, confidence = None, None, None
 	if faces is not None:
 		if type(faces) == tuple:
 			faces = [faces]
@@ -123,6 +126,8 @@ def recognize(img):
 
 if __name__ == "__main__":
 	import sys
+	cv2.namedWindow("Viewer", cv2.WINDOW_NORMAL)
+	cv2.resizeWindow("Viewer", 640, 480)
 	try:
 		target = sys.argv[1]
 	except:
@@ -141,21 +146,23 @@ if __name__ == "__main__":
 		time.sleep(0.5)
 		filepath = os.path.realpath(f)
 		name, img = recognize(filepath)
-		h, w, c = img.shape
-		if w > h:
-			r = 640 / h
-			nh = 640
-			nw = int(w * r)
-		elif h > w:
-			r = 640 / w
-			nw = 640
-			nh = int(h * r)
-		else:
-			nw = 640
-			nh = 640
-		cv2.imshow("color", cv2.resize(img, (nw,nh)))
-		if cv2.waitKey(1) == ord('q'):
-			break
+		if img is not None:
+			h, w, c = img.shape
+			if w > h:
+				r = 640 / h
+				nh = 640
+				nw = int(w * r)
+			elif h > w:
+				r = 640 / w
+				nw = 640
+				nh = int(h * r)
+			else:
+				nw = 640
+				nh = 640
+			#img = cv2.resize(img, (nw,nh))
+			cv2.imshow("Viewer", img)
+			if cv2.waitKey(1) == ord('q'):
+				break
 
-	
+
 		
