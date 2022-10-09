@@ -1,5 +1,4 @@
 def mkhtml(cams, camera_id):
-	print (cams)
 	all_html = []
 	title = "Camera{camera_id}"
 	html=f"""<!doctype html>
@@ -14,7 +13,7 @@ def mkhtml(cams, camera_id):
 	for camera_id in list(cams.keys()):
 		src = cams[camera_id]['url']
 		block=f"""			<div id="cam{camera_id}">
-			 <img id="{camera_id}" src="{src}" alt="Camera {camera_id}" width="{cams[camera_id]['w']}" height="{cams[camera_id]['h']}"> 
+			 <img id="{camera_id}" src="{src}" alt="Camera {camera_id}" width="{cams[camera_id]['W']}" height="{cams[camera_id]['H']}"> 
 			  <script src="motionjpeg.js"></script>
 			  <script>
 			  	$(document).ready(function() """'{'f"""

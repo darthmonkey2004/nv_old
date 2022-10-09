@@ -39,6 +39,20 @@ class ptz_control():
 		self.stop_command = f"-step=0&-act=stop"
 		self.stop_url = f"{self.create_url(type='control')}?{self.stop_command}"
 		self.directions = ['left', 'downleft', 'down', 'downright', 'right', 'upright', 'up', 'upleft', 'stop']
+		self.s = {}
+		self.s[0] = 0, 1
+		self.s[1] = 0.1 , 1
+		self.s[2] = 0.5, 1
+		self.s[3] = 1, 1
+		self.s[4] = 0.1, 1
+		self.s[5] = 0.5, 1
+		self.s[6] = 1, 1
+		self.s[7] = 0.1, 1
+		self.s[8] = 0.5, 1
+		self.s[9] = 1, 1
+		self.pan_speed = 1
+		self.tilt_speed = 1
+		self.track_to_center = self.opts['detector']['track_to_center']
 		# if authentication used, modify empty headers dictionary to use basic auth
 		if self.uses_auth is True:
 			try:
@@ -52,7 +66,17 @@ class ptz_control():
 			#pw = opts['auth']['pw']
 			#string=f"{user}:{pw}".encode('ascii')
 			#self.headers = {"Authorization: Basic'] = base64.b64encode(string).decode()
-		
+
+
+	def disable_follow(self):
+		self.track_to_center = False
+		log(f"Auto ptz tracking disabled!", 'info')
+
+
+	def enable_follow(self):
+		self.track_to_center = True
+		log(f"Auto ptz tracking enabled!", 'info')
+	
 
 	def send(self, url):
 		if self.uses_auth is True:
@@ -75,14 +99,20 @@ class ptz_control():
 		return url
 
 
-	def set_speed(self, pan_spd=1, tilt_spd=1):
-		if pan_spd > 2 or pan_spd < 0:
-			log(f"Error: pan speed out of range! (Valid options: 0=high, 1=medium, 2=low)", 'error')
-			return False
-		if tilt_spd > 2 or tilt_spd < 0:
-			log(f"Error: tilt speed out of range! (Valid options: 0=high, 1=medium, 2=low)", 'error')
-			return False
-		set_command = f"cmd=setmotorattr&-tiltspeed={tilt_spd}&-panspeed={pan_spd}"
+	def set_speed(self, pan_spd=None, tilt_spd=None):
+		if pan_spd is not None:
+			self.pan_speed = int(pan_spd)
+		if tilt_spd is not None:
+			self.tilt_speed = int(tilt_spd)
+		if self.pan_speed > 2:
+			self.pan_speed = 2
+		elif self.pan_speed < 0:
+			self.pan_speed = 0
+		if self.tilt_speed > 2 :
+			self.tilt_speed = 2
+		elif self.tilt_speed < 0:
+			self.tilt_speed = 0
+		set_command = f"cmd=setmotorattr&-tiltspeed={self.tilt_speed}&-panspeed={self.pan_speed}"
 		url = f"{self.create_url(type='param')}?{set_command}"
 		self.send(url)
 
@@ -161,6 +191,7 @@ class ptz_control():
 				log(f"PTZ EVENT: {self.key.lower()}", 'info')
 				self.move(self.key.lower())
 				self.key = None
+
 		
 	
 if __name__ == "__main__":

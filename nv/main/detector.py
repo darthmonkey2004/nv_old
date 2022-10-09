@@ -4,54 +4,15 @@ import datetime
 from suntime import Sun, SunTimeException
 import os
 import imutils
-import face_recognition
+from nv.main.fr_dlib import fr_dlib
 import numpy as np
 import cv2
 from nv.main.log import nv_logger
 from nv.main.conf import readConf
 import sys, traceback
-
-userdir = os.path.expanduser('~')
-DATA_DIR=(f"{userdir}{os.path.sep}.np{os.path.sep}nv")
-KNOWN_FACES_DB=(DATA_DIR + "/nv_known_faces.dat")
-
-
-def initDatabase(ret='all', datfile=None):
-	ALL_FACE_ENCODINGS = {}
-	KNOWN_ENCODINGS = []
-	all_names = []
-	KNOWN_NAMES = []
-	KNOWN_USER_IDS = []
-	if datfile == None:
-		datfile = KNOWN_FACES_DB
-	try:
-		with open(datfile, 'rb') as f:
-			ALL_FACE_ENCODINGS = pickle.load(f)
-			all_names = list(ALL_FACE_ENCODINGS.keys())
-			KNOWN_ENCODINGS = np.array(list(ALL_FACE_ENCODINGS.values()), dtype=object)
-		f.close()
-		pos = 0
-		for testname in all_names:
-			testname = testname.split('_')[0]
-			if testname not in KNOWN_NAMES:
-				pos = pos + 1
-				KNOWN_NAMES.append(testname)
-				KNOWN_USER_IDS.append(pos)
-	except:
-		pass
-
-	if ret == 'all':
-		out = (KNOWN_NAMES, KNOWN_USER_IDS)
-	elif ret == 'ids':
-		out = KNOWN_USER_IDS
-	elif ret == 'names':
-		out = KNOWN_USER_NAMES
-	elif ret == 'init':
-		out = (ALL_FACE_ENCODINGS, KNOWN_NAMES, KNOWN_ENCODINGS, KNOWN_USER_IDS)
-	return out
-
-ALL_FACE_ENCODINGS, KNOWN_NAMES, KNOWN_ENCODINGS, KNOWN_USER_IDS = initDatabase('init')
-
+from nv.utils.ptz_control import ptz_control
+ptz = ptz_control()
+fr_dlib = fr_dlib()
 
 logger = nv_logger().log_msg
 TRACKER_TYPES = ['BOOSTING', 'MIL','KCF', 'TLD', 'MEDIANFLOW', 'GOTURN', 'CSRT']
@@ -83,7 +44,25 @@ def set_tod(coords=()):
 	elif ct <= sr:
 		return 'night'
 
-
+def constrain_box(img, l, t, r, b):
+	h, w, c = img.shape
+	if t <= 0:
+		t = 10
+	elif t >= h:
+		t = h - 10
+	if b <= 0:
+		b = 10
+	elif b >= h:
+		b = h - 10
+	if r <= 0:
+		r = 10
+	elif r >= w:
+		r = w - 10
+	if l <= 0:
+		l = 10
+	elif l >= w:
+		l = w - 10
+	return l, t, r, b
 
 
 def get_output_layers(net):	
@@ -110,35 +89,42 @@ class detector:
 	def __init__(self, opts={}):
 		if opts == {}:
 			opts = read_opts(0)
-		self.det_provider = opts['detector']['provider']
+		self.opts = opts
+		self.det_provider = self.opts['detector']['provider']
 		self.name = None
 		self.matches = []
 		self.face_location = None
 		self.test_location = None
-		self.namelist = list(ALL_FACE_ENCODINGS.keys())
 		self.box = None
-		self.known_encodings = KNOWN_ENCODINGS
-		self.classes = opts['detector']['object_detector']['classes']
-		self.net = cv2.dnn.readNetFromCaffe(opts['detector']['object_detector']['prototxt'], opts['detector']['object_detector']['model'])
-		self.targets = opts['detector']['object_detector']['targets']
-		self.target_confidence = opts['detector']['object_detector']['confidence']
+		self.all_encodings = self.get_known_encodings()
+		self.fr_dlib_known_encodings = self.all_encodings.values()
+		self.fr_dlib_known_names = [name.split('_')[0] for name in list(self.all_encodings.keys())]
+		
+		self.classes = self.opts['detector']['object_detector']['classes']
+		self.net = cv2.dnn.readNetFromCaffe(self.opts['detector']['object_detector']['prototxt'], self.opts['detector']['object_detector']['model'])
+		self.targets = self.opts['detector']['object_detector']['targets']
+		self.target_confidence = float(self.opts['detector']['object_detector']['confidence'])
 		self.l = 0
 		self.t = 0
 		self.r = 0
 		self.b = 0
-		camera_id = opts['camera_id']
-		self.H = opts[camera_id]['H']
-		self.W = opts[camera_id]['W']
-		self.tolerance = opts['detector']['fr']['tolerance']
-		self.model = opts['detector']['fr']['model']
+		camera_id = self.opts['camera_id']
+		self.H = opts['H']
+		self.W = opts['W']
+		print(self.H, self.W)
+		self.tolerance = self.opts['detector']['fr']['tolerance']
+		self.model = self.opts['detector']['fr']['model']
 		self.mean = (127.5, 127.5, 127.5)
-		self.scale = 0.007843
+		#self.scale = (300 / self.W) / 100
+		#self.scale = 0.004688
+		self.scale = 0.01
+		#self.detector_input_shape = (self.W, self.H)
 		self.detector_input_shape = (300, 300)
 		self.cv2_recognizer = cv2.face.LBPHFaceRecognizer_create()
-		#self.cv2_detector = opts['cv2_detector']
-		self.faceCascade = cv2.CascadeClassifier(opts['detector']['fd_cv2']['face_cascade']);
+		#self.cv2_detector = self.opts['cv2_detector']
+		self.faceCascade = cv2.CascadeClassifier(self.opts['detector']['fd_cv2']['face_cascade']);
 		self.font = cv2.FONT_HERSHEY_SIMPLEX
-		cv2_fr_trained = opts['detector']['fr_cv2']['dbpath']
+		cv2_fr_trained = self.opts['detector']['fr_cv2']['dbpath']
 		self.cv2_known_names = get_known_names(opts)
 		self.cv2_recognizer.read(cv2_fr_trained)
 		self.cv2_detector = cv2.CascadeClassifier('/home/monkey/.np/nv/haarcascade_frontalface_default.xml')
@@ -150,6 +136,121 @@ class detector:
 		self.yolo_colors = np.random.uniform(0, 255, size=(len(self.yolo_classes), 3))
 		self.yolo_net = cv2.dnn.readNet(self.yolo_weights, self.yolo_config)
 		self.flip_image = False
+
+	def ptz_track_to_center(self, img, box):
+		duration = 0
+		d = None
+		d = {}
+		x_dist = 0
+		y_dist = 0
+		l, t, r, b = box
+		box_cx = ((r - l) / 2) + l
+		box_cy = ((b - t) / 2) + t
+		img_cx = img.shape[1] / 2
+		img_cy = img.shape[0] / 2
+		if box_cx > img_cx:
+			x_d = 'right'
+			x_dist = box_cx - img_cx
+		elif box_cx < img_cx:
+			x_d = 'left'
+			x_dist = img_cx - box_cx
+		elif box_cx == img_cx:
+			x_d = 'center'
+		if box_cy > img_cy:
+			y_d = 'down'
+			y_dist = box_cy - img_cy
+		elif box_cy < img_cy:
+			y_d = 'up'
+			y_dist = img_cy - box_cy
+		elif box_cy == img_cy:
+			y_d = 'center'
+		rx = (y_dist / img.shape[0]) * 1000
+		ry = (x_dist / img.shape[1]) * 1000
+		min = 1
+		max = 486
+		rx = round((rx / max) * 100)
+		ry = round((ry / max) * 100)
+		print(rx, ry)
+		if rx <= 10:
+			dx, sx = None, None
+		elif rx > 10 and rx <= 20:
+			dx, sx = ptz.s[1]
+		elif rx > 20 and rx <= 30:
+			dx, sx = ptz.s[2]
+		elif rx > 30 and rx <= 40:
+			dx, sx = ptz.s[3]
+		elif rx > 40 and rx <= 50:
+			dx, sx = ptz.s[4]
+		elif rx > 50 and rx <= 60:
+			dx, sx = ptz.s[5]
+		elif rx > 60 and rx <= 70:
+			dx, sx = ptz.s[6]
+		elif rx > 70 and rx <= 80:
+			dx, sx = ptz.s[7]
+		elif rx > 80 and rx <= 90:
+			dx, sx = ptz.s[8]
+		elif rx > 90:
+			dx, sx = ptz.s[9]
+		if ry <= 10:
+			dy, sy = None, None
+		elif ry > 10 and ry <= 20:
+			dy, sy = ptz.s[1]
+		elif ry > 20 and ry <= 30:
+			dy, sy = ptz.s[2]
+		elif ry > 30 and ry <= 40:
+			dy, sy = ptz.s[3]
+		elif ry > 40 and ry <= 50:
+			dy, sy = ptz.s[4]
+		elif ry > 50 and ry <= 60:
+			dy, sy = ptz.s[5]
+		elif ry > 60 and ry <= 70:
+			dy, sy = ptz.s[6]
+		elif ry > 70 and ry <= 80:
+			dy, sy = ptz.s[7]
+		elif ry > 80 and ry <= 90:
+			dy, sy = ptz.s[8]
+		elif ry > 90:
+			dy, sy = ptz.s[9]
+		print (dx, sx, dy, sy)
+		if dx is None and sx is None and dy is None and sy is None:
+			move = False
+		else:
+			if dy is not None and dx is not None:
+				if dy < dx:
+					duration = dx
+				elif dy > dx:
+					duration = dy
+				elif dy == dx:
+					duration = dx
+			elif dy is not None and dx is None:
+				duration = dy
+			elif dy is None and dx is not None:
+				duration = dx
+			else:
+					duration = None
+			ptz.set_speed(sx, sy)
+			move = True
+		if move:
+			if x_d != 'center' and y_d != 'center':
+				d = f"{y_d}{x_d}"
+			elif x_d == 'center' and y_d != 'center':
+				d = y_d
+			elif x_d != 'center' and y_d == 'center':
+				d = x_d
+			else:
+				d = None
+			if d is not None and duration is not None:
+				ptz.step(d, duration)
+
+	def get_known_encodings(self):
+		datfile = os.path.join(os.path.expanduser("~"), '.np', 'nv', 'nv_known_faces.dat')
+		with open(datfile, 'rb') as f:
+			self.all_encodings = pickle.load(f)
+			f.close()
+		return self.all_encodings
+
+	def refresh_opts(self):
+		self.opts = read_opts()
 
 	def face_detect(self, imgpath):
 		if self.det_provider == 'dlib':
@@ -169,18 +270,30 @@ class detector:
 			confidence = None
 			o = (name, box, confidence)
 			out.append(o)
+		if ptz.track_to_center:
+			try:
+				self.ptz_track_to_center(img, out[0][1])
+			except:
+				pass
 		return out
 
 
 	def face_detect_dlib(self, imgpath):
 		if type(imgpath) == str:
-			img = face_recognition.load_image_file(imgpath)
+			img = cv2.imread(imgpath)
 		else:
 			img = imgpath
 		img = imutils.resize(img, width=400)
 		if img is None:
 			return (None, None, None)
-		self.box = face_recognition.face_locations(img)
+		model = self.opts['detector']['fr_dlib']['model']
+		upsamples = self.opts['detector']['fr_dlib']['upsamples']
+		self.box = fr_dlib.face_locations(img, upsamples=upsamples, model=model)
+		if ptz.track_to_center:
+			try:
+				self.ptz_track_to_center(img, box)
+			except:
+				pass
 		if self.box is None:
 			return (None, None, None)
 		self.name = "Detected Face"
@@ -189,6 +302,36 @@ class detector:
 		except:
 			out = (None, None, None)
 		return out
+
+
+	def get_matches(self, img, tolerance=None):
+		if tolerance is not None:
+			#a good start is 0.8
+			self.tolerance = tolerance
+		if type(img) is str:
+			img = cv2.imread(img)
+		boxes = fr_dlib.face_locations(img)
+		dets = fr_dlib.face_encodings(img, boxes)
+		matches = {}
+		for box in boxes:
+			encodings = list(self.all_encodings.values())
+			self.encodings = np.array(encodings, dtype=object)
+			for test in dets:
+				idx = -1
+				for landmark in list(all_encodings.values()):
+					idx += 1
+					dist = round(float(np.linalg.norm(landmark - test)), 2)
+					print(dist)
+					tolerance = float(self.tolerance)
+					if dist <= tolerance:
+						name = list(all_encodings.keys())[idx].split('_')[0]
+						matches[dist] = {}
+						matches[dist]['idx'] = idx
+						matches[dist]['name'] = name
+						matches[dist]['dist'] = dist
+						matches[dist]['box'] = box
+		return matches
+
 
 	def recognize(self, imgpath):
 		if self.det_provider == 'dlib':
@@ -201,7 +344,6 @@ class detector:
 	def recognize_cv2(self, imgpath):
 		out = []
 		if type(imgpath) == str:
-			#img = face_recognition.load_image_file(imgpath)
 			img = cv2.imread(imgpath)
 		else:
 			img = imgpath
@@ -220,33 +362,35 @@ class detector:
 				confidence = int(f"{format(round(100 - confidence))}")
 				o = (name, (l, t, r, b), confidence)
 				out.append(o)
+		if ptz.track_to_center:
+			try:
+				self.ptz_track_to_center(img, out[0][1])
+			except:
+				pass
 		return out
 		
-	def recognize_dlib(self, imgpath):
-		if type(imgpath) == str:
-			#img = face_recognition.load_image_file(imgpath)
-			img = cv2.imread(imgpath)
-		else:
-			img = imgpath
-		img = imutils.resize(img, width=400)
-		if img is None:
-			return (None, None, None)
-		img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-		self.box = face_recognition.face_locations(img,model=self.model)
-		if self.box == []:
-			return (None, None, None)
-		self.encoding = face_recognition.face_encodings(img, self.box)
-		log(f"Tolerance:{self.tolerance}", 'info')
-		self.result = face_recognition.compare_faces(self.known_encodings, self.encoding, self.tolerance)
-		if True in self.result:
-			i = self.result.index(True)
-			name = self.namelist[i]
-			splitter = '_'
-			self.name = name.split(splitter)[0]
-			t, r, b, l = self.box[0]
-			box = (l, t, r, b)
-			#return tolerance in lieu of confidence rating
-			return [(self.name, box, self.tolerance)]
+
+	def recognize_dlib(self, img, tolerance=None):
+		if tolerance is not None:
+			#a good start is 0.8
+			self.tolerance = tolerance
+		matches = self.get_matches(img, self.tolerance)
+		out = []
+		if matches != {}:
+			best = sorted(matches.keys())[0]
+			dist = matches[best]['dist']
+			confidence = 1 - dist * 100
+			c = float(str(confidence).split('-')[1])
+			box = matches[best]['box']
+			name = matches[best]['name']
+			o = name, box, c
+			out.append(o)
+		if ptz.track_to_center:
+			try:
+				self.ptz_track_to_center(img, out[0][1])
+			except:
+				pass
+		return out
 
 	def object_detect(self, imgpath):
 		if type(imgpath) == str:
@@ -259,17 +403,23 @@ class detector:
 		self.net.setInput(blob)
 		detections = self.net.forward()
 		out = []
-		for i in np.arange(0, detections.shape[2]):
-			self.confidence = detections[0, 0, i, 2]
+		for i in range(0, detections.shape[2]):
+			self.confidence = float(detections[0, 0, i, 2])
 			idx = int(detections[0, 0, i, 1])
 			self.name = self.classes[idx]
-			if self.name in self.targets and self.confidence >= self.target_confidence:
+			if self.name in self.targets and float(self.confidence) >= float(self.target_confidence):
 				#dets = detections[0, 0, i, 3:7] * np.array([self.W, self.H, self.W, self.H])
 				dets = detections[0, 0, i, 3:7] * np.array([img.shape[1], img.shape[0], img.shape[1], img.shape[0]])
-				(self.l, self.t, self.r, self.b) = dets.astype("int")
-				self.box = (self.l, self.t, self.r, self.b)
+				l, t, r, b = dets.astype("int")
+				l, t, r, b = constrain_box(img, l, t, r, b)
+				self.box = (l, t, r, b)
 				o = (self.name, self.box, self.confidence)
 				out.append(o)
+		if ptz.track_to_center:
+			try:
+				self.ptz_track_to_center(img, out[0][1])
+			except:
+				pass
 		return out
 
 	def yolov3(self, image):

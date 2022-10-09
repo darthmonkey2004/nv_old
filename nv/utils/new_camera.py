@@ -1,6 +1,7 @@
+from nv.utils.utils import get_auth, set_auth
 import os
 import subprocess
-from nv.main.conf import init_opts, read_opts, write_opts
+from nv.main.conf import readConf, writeConf, init_opts
 import PySimpleGUI as sg
 import keyring
 from nv.main.log import nv_logger
@@ -23,29 +24,15 @@ def log(msg, _type=None):
 		logger(msg, _type)
 
 
-def set_auth(label, key, val):
-	return keyring.set_password(label, key, val)
-
-
-def get_auth(label, key):
-	return keyring.get_password(label, key)
-
-
 def get_new_id():
-	home = os.path.expanduser("~")
-	path = f"{home}{os.path.sep}.np{os.path.sep}nv"
-	ids = []
-	com = f"cd \"{path}\"; ls *.conf | grep -v \"nv.conf\""
-	confs = subprocess.check_output(com, shell=True).decode().strip().split("\n")
-	for conf in confs:
-		ids.append(int(conf.split('_')[2].split('.conf')[0]))
-	ids = sorted(ids)
+	conf = readConf()
+	ids = sorted(list(conf.keys()))
 	newid = ids[len(ids) - 1] + 1
 	return newid
 
 def new_camera(opts):
 	camera_id = opts['camera_id']
-	user = opts[camera_id]['user']
+	user = opts['user']
 	location = opts['ptz']['window']['location']
 	size = opts['ptz']['window']['size']
 	ww, wh = size
@@ -57,7 +44,8 @@ def new_camera(opts):
 	#menu_def = [['Settings', [settings_menus]]]
 	#menu = sg.MenubarCustom(menu_def, tearoff=True, key='-menubar_key-')
 	
-	line1 = [sg.Text('Camera_id'), sg.Input(default_text=opts['camera_id'], size=(10, 10), enable_events=True, change_submits=True, key='-CAMERA_ID-')]
+	line1 = [sg.Text('Camera_id:'), sg.Input(default_text=opts['camera_id'], size=(10, 10), enable_events=True, change_submits=True, key='-CAMERA_ID-')]
+	cam_src = [sg.Text('Camera Source:'), sg.Input(default_text='Enter url or local device number here:', size=(10, 10), enable_events=True, change_submits=True, key='-CAMERA_SRC-')]
 	auth_ckbox = [sg.Checkbox('Rqeuires Authentication', default=True, enable_events=True, key='-HAS_AUTH-')]
 	ptz_ckbox = [sg.Checkbox('PTZ Enabled', default=False, enable_events=True, key='-HAS_PTZ-')]
 	cam_width = [sg.Text('Camera Width:'), sg.Input(default_text='640', size=(10, 10), enable_events=True, change_submits=True, key='-CAMERA_WIDTH-')]
@@ -67,6 +55,7 @@ def new_camera(opts):
 	line3 = [sg.Button('Add'), sg.Button('Cancel')]
 	keyboard_checkbox = [sg.Button('Save Window Location'), sg.Checkbox('Keyboard Control:', default=False, enable_events=True, key='-KEYBOARD_CONTROL-')]
 	layout.append(line1)
+	layout.append(cam_src)
 	layout.append(cam_width)
 	layout.append(cam_height)
 	layout.append(auth_ckbox)
@@ -79,17 +68,8 @@ def new_camera(opts):
 
 def new_camera_loop(win=None):
 	global exit_loop
-	user = os.path.expanduser("~").split('/home/')[1]
 	camera_id = get_new_id()
 	opts = init_opts(camera_id)
-	opts['camera_id'] = camera_id
-	opts[camera_id] = {}
-	opts[camera_id]['has_auth'] = True
-	opts[camera_id]['has_ptz'] = False
-	opts[camera_id]['H'] = None
-	opts[camera_id]['W'] = None
-	opts[camera_id]['url'] = None
-	opts[camera_id]['user'] = user
 	if win is None:
 		win = new_camera(opts)
 	while True:
@@ -110,13 +90,15 @@ def new_camera_loop(win=None):
 				pass
 			if event == 'Add':
 				pw = window['-SET_PASS-'].get()
-				label=f"cam_{camera_id}"
-				set_auth(label, 'pw', pw)
-				opts[camera_id]['src']['pw'] = f"cam_{camera_id}:pw"
+				auth_key = set_auth(camera_id, pw)
+				opts['src']['pw'] = auth_key
 				write_opts(opts)
 				log(f"Options file written for camera id {camera_id}!", 'info')
 				win.close()
 				break
+			elif event == '-CAMERA_SRC-':
+				opts['src']['url'] = values[event]
+				log(f"Updated camera source! ({opts['src']['url']}", 'info')
 			elif event == 'Cancel':
 				win.close()
 				break
@@ -124,21 +106,21 @@ def new_camera_loop(win=None):
 				opts['camera_id'] = values[event]
 				log(f"Updated camera id! {camera_id}", 'info')
 			elif event == '-CAMERA_WIDTH-':
-				opts[camera_id]['H'] = values[event]
+				opts['H'] = values[event]
 				log(f"Updated camera height: {values[event]}", 'info')
 			elif event == '-CAMERA_HEIGHT-':
-				opts[camera_id]['W'] = values[event]
+				opts['W'] = values[event]
 				log(f"Updated camera width: {values[event]}", 'info')
 			elif event == '-HAS_AUTH-':
-				opts[camera_id]['src']['has_auth'] = values[event]
+				opts['src']['has_auth'] = values[event]
 				log(f"Updated camera authentication flag: {values[event]}", 'info')
 			elif event == '-SET_USER-':
 				try:
-					var = opts[camera_id]['src']
+					var = opts['src']
 				except:
-					opts[camera_id]['src'] = {}
-				opts[camera_id]['src']['user'] = values[event]
+					opts['src'] = {}
+				opts['src']['user'] = values[event]
 				log(f"Updated camera height: {values[event]}", 'info')
 			elif event == '-HAS_PTZ-':
-				opts[camera_id]['has_ptz'] = values[event]
+				opts['has_ptz'] = values[event]
 				log(f"Changed ptz enabled value: {values[event]}", 'info')

@@ -31,12 +31,13 @@ def ptz_ui(opts):
 	size = opts['ptz']['window']['size']
 	layout = []
 	settings_menus = ['PTZ Settings', 'Face Detection Settings', 'Object Detection Settings', 'Image Output Settings', 'Capture Settings', 'Server Settings', 'General Settings']
-	menu_def = [['Settings', [settings_menus]]]
+	menu_def = [['Settings', [settings_menus], 'Oak-D Lite']]
 	menu = [sg.MenubarCustom(menu_def, tearoff=True, key='-menubar_key-'), sg.Button('Add Camera')]
 	line1 = [sg.Button('Up Left'), sg.Button('Up'), sg.Button('Up Right')]
 	line2 = [sg.Button('Left'), sg.Button('Stop'), sg.Button('Right')]
 	line3 = [sg.Button('Down Left'), sg.Button('Down'), sg.Button('Down Right')]
 	keyboard_checkbox = [sg.Button('Save Window Location'), sg.Checkbox('Keyboard Control:', default=False, enable_events=True, key='-KEYBOARD_CONTROL-')]
+	ptz_track_checkbox = [sg.Checkbox('PTZ Auto Tracking:', default=opts['detector']['track_to_center'], enable_events=True, key='-PTZ_TRACKING-')]
 	current_memory_box = [sg.Text(psutil.virtual_memory().percent, key='CURRENT_MEMORY')]
 	layout.append(menu)
 	layout.append(line1)
@@ -173,6 +174,9 @@ def ui_loop(win=None, ptz=None, opts=None):
 						break
 				except:
 					exit = True
+			elif event == '-PTZ_TRACKING-':
+				ptz.track_to_center = values[event]
+				log(f"Toggle PTZ Auto Tracking: {ptz.track_to_center}!", 'info')
 			else:
 				print(event)
 

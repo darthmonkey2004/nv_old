@@ -11,7 +11,7 @@ class Window(QMainWindow):
 		#---------------------adding browser-------------------
 		self.browser = QWebEngineView()
 		camera_id = opts['camera_id']
-		self.browser.setUrl(QUrl(opts[camera_id]['url']))
+		self.browser.setUrl(QUrl(opts['url']))
 		self.setCentralWidget(self.browser)
 		#-------------------full screen mode------------------
 		#to display browser in full screen mode, you may comment below line if you don't want to open your browser in full screen mode

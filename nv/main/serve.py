@@ -348,23 +348,23 @@ def setup(camera_id=None):
 		camera_id = 0
 	else:
 		camera_id = int(camera_id)
-	cams = readConf()
-	d = cams
+	conf = readConf()
+
+	d = conf['cameras']
 	global mjpg_server
 	opts = read_opts(camera_id)
 	debug = opts['debug']
-	del cams['debug']# remove this from conf, in opts
 	maxsize = 30
 	mjpg_in_q = Queue(maxsize=30)
 	proc_in_q = Queue(maxsize=maxsize)
 	proc_out_q = Queue()
-	src = cams[camera_id]['src']
-	d[camera_id]['html'] = mkhtml(cams, camera_id)
+	src = d[camera_id]['src']['url']
+	d[camera_id]['html'] = mkhtml(d, camera_id)
 	d[camera_id]['proc_thread'] = start_process(opts, proc_in_q, proc_out_q)
-	addr = cams[camera_id]['addr']
-	port = int(cams[camera_id]['port'])
+	addr = d[camera_id]['addr']
+	port = int(d[camera_id]['port'])
 	mjpg_server = mjpg_server(src=None, q=mjpg_in_q, addr=addr, port=port, camera_id=camera_id)
-	mjpg_server.set_cap(cams[camera_id]['method'])
+	mjpg_server.set_cap(d[camera_id]['method'])
 	mjpg_server.set_quality(50)
 	t = Thread(target=mjpg_server.start, args=(True,))
 	t.setDaemon(True)
@@ -390,71 +390,83 @@ def draw_on_image(img, data, opts):
 			if type(box) == tuple and len(box) == 2:
 				object_id, box = box
 			l, t, r, b = box
-			drawn = cv2.rectangle(img, (int(l), int(t), int(r), int(b)), RED, 2)
+			drawn = cv2.rectangle(img, (int(l), int(t)), (int(r), int(b)), RED, 2)
 			y = t + 30
 			coords = (int(l), int(y))
 			drawn = cv2.putText(drawn, object_name, coords, opts['FONT'], opts['FONT_SCALE'], BLUE, 2, cv2.LINE_AA)
 	return drawn
 
 
-def run_server(camera_id):
-	print("Starting")
-	opts = read_opts(camera_id)
-	mjpg_in_q, proc_in_q, proc_out_q = setup()
-	has_auth = opts['src']['has_auth']
-	if has_auth:
-		try:
-			pw = subprocess.check_output(f"secret-tool lookup porchcam pw", shell=True).decode().strip()
-		except:
-			log("Couldn't get password from store! Enter it now:", 'info')
-			subprocess.call(f"secret-tool store --label=\"NV\" porchcam pw", shell=True)
-			pw = subprocess.check_output(f"secret-tool lookup porchcam pw", shell=True).decode().strip()
-		url = f"rtsp://{opts['src']['user']}:{pw}@{opts['src']['url'].split('://')[1]}"
-	else:
-		url = opts['src']['url']
-	cap = cv2.VideoCapture(url)
-	width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-	height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-	dets = []
-	t = Thread(target=start_ui, args=(opts,))
-	t.setDaemon(True)
-	t.start()
-	frame_ct = 0
-	fps = 30
-	start_thread()
-	while True:
-		ret, img = cap.read()
-		if ret:
-			frame_ct += 1
-			if frame_ct == 1:
-				#initialize fps counter
-				start_time = time.time()
-			elif frame_ct == 30:
-				#calculate fps
-				duration = time.time() - start_time
-				#set skip rate to twice the frame rate for processing feed (to stay current, low ram usage)
-				fps = round(30 / duration) + 1
-				#reset frame count to 0
-				frame_ct = 0
-				#print currrent main thread memory usage
-				#log(f"MAINTHREAD-MEMORY-USAGE: {psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2}", 'info')
-			img2 = img.copy()
-			if not proc_in_q.full():
-				# put fps * 2 (skip_frames rate) and img to process queue
-				out = (fps, img2)
-				proc_in_q.put_nowait(out)
-			if not mjpg_in_q.full():
-				img = draw_on_image(img, dets, opts)
-				mjpg_in_q.put_nowait(img)
-		if not proc_out_q.empty():
-			data = proc_out_q.get_nowait()
-			for camera_id in data.keys():
-				dets = data[camera_id]
-				try:
-					proc_out_q.task_done()
-				except Exception as e:
-					log(f"MAINLOOP::proc_out_q Empty: ({e})", 'warning')
+
+class serve():
+	def __init__(self, camera_id=0):
+		self.camera_id = camera_id
+		self.run = True
+		
+	def run_server(self):
+		#print("Starting")
+		opts = read_opts(self.camera_id)
+		mjpg_in_q, proc_in_q, proc_out_q = setup()
+		has_auth = opts['src']['has_auth']
+		if has_auth:
+			try:
+				pw = subprocess.check_output(f"secret-tool lookup porchcam pw", shell=True).decode().strip()
+			except:
+				log("Couldn't get password from store! Enter it now:", 'info')
+				subprocess.call(f"secret-tool store --label=\"NV\" porchcam pw", shell=True)
+				pw = subprocess.check_output(f"secret-tool lookup porchcam pw", shell=True).decode().strip()
+			url = f"rtsp://{opts['src']['user']}:{pw}@{opts['src']['url'].split('://')[1]}"
+		else:
+			url = opts['src']['url']
+		self.cap = cv2.VideoCapture(url)
+		width  = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+		height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+		dets = []
+		t = Thread(target=start_ui, args=(opts,))
+		t.setDaemon(True)
+		t.start()
+		frame_ct = 0
+		fps = 30
+		start_thread()
+		while self.run is True:
+			ret, img = self.cap.read()
+			if ret:
+				frame_ct += 1
+				if frame_ct == 1:
+					#initialize fps counter
+					start_time = time.time()
+				elif frame_ct == 30:
+					#calculate fps
+					duration = time.time() - start_time
+					#set skip rate to twice the frame rate for processing feed (to stay current, low ram usage)
+					fps = round(30 / duration) + 1
+					#reset frame count to 0
+					frame_ct = 0
+					#print currrent main thread memory usage
+					#log(f"MAINTHREAD-MEMORY-USAGE: {psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2}", 'info')
+				img2 = img.copy()
+				if not proc_in_q.full():
+					# put fps * 2 (skip_frames rate) and img to process queue
+					out = (fps, img2)
+					proc_in_q.put_nowait(out)
+				if not mjpg_in_q.full():
+					img = draw_on_image(img, dets, opts)
+					mjpg_in_q.put_nowait(img)
+			if not proc_out_q.empty():
+				data = proc_out_q.get_nowait()
+				for camera_id in data.keys():
+					dets = data[camera_id]
+					try:
+						proc_out_q.task_done()
+					except Exception as e:
+						log(f"MAINLOOP::proc_out_q Empty: ({e})", 'warning')
 
 
 if __name__ == '__main__':
-	run_server()
+	import sys
+	try:
+		camera_id = sys.argv[1]
+	except:
+		camera_id = 0
+	serve = serve(camera_id)
+	serve.run_server()

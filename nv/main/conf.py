@@ -1,3 +1,6 @@
+import subprocess
+import sys
+import PySimpleGUI as sg
 from suntime import Sun, SunTimeException
 import datetime
 import os
@@ -15,17 +18,35 @@ def log(msg, _type=None):
 	else:
 		logger(msg, _type)
 
-user = os.path.expanduser("~")
-DATA_DIR = (f"{user}{os.path.sep}.np{os.path.sep}nv")
-CONFFILE = f"{DATA_DIR}{os.path.sep}nv.conf"
-LOGFILE = f"{DATA_DIR}{os.path.sep}nv.log"
+DATA_DIR = os.path.join(os.path.expanduser("~"), '.np', 'nv')
+CONFFILE = os.path.join(DATA_DIR, 'nv.conf')
+LOGFILE = os.path.join(DATA_DIR, 'nv.log')
+
+def get_local_ip():
+	com = "ip -o -4 a s | awk -F'[ /]+' '$2!~/lo/{print $4}' | grep \"192.168\""
+	return subprocess.check_output(com, shell=True).decode().strip()
+
+def get_user_input(window_title='User Input'):
+	user_input = None
+	input_box = sg.Input(default_text='', enable_events=True, change_submits=True, do_not_clear=True, key='-USER_INPUT-', expand_x=True)
+	input_btn = sg.Button(button_text='Ok', auto_size_button=True, pad=(1, 1), key='-OK-')
+	layout = [[input_box], [input_btn]]
+	input_window = sg.Window(window_title, layout, keep_on_top=False, element_justification='center', finalize=True)
+	while True:
+		event, values = input_window.read()
+		if event == sg.WIN_CLOSED:
+			break
+		elif event == '-OK-':
+			input_window.close()
+		elif event == '-USER_INPUT-':
+			user_input = values[event]
+	return user_input
 
 
 def readConf(path=None):
 	if path == None:
 		path = CONFFILE
 	try:
-
 		with open(path, 'rb') as f:
 			cams = pickle.load(f)
 		f.close()
@@ -33,20 +54,17 @@ def readConf(path=None):
 	except Exception as e:
 		#log(f"Warning: conf file not found! Using defaults...", 'warning')
 		camera_id = 0
-		cams = {}
-		cams[camera_id] = {}
-		cams[camera_id]['addr'] = '192.168.2.4'
-		cams[camera_id]['port'] = 8080
-		cams[camera_id]['url'] = (f"http://{cams[0]['addr']}:{cams[0]['port']}/Camera_{camera_id}.jpeg")
-		cams[camera_id]['w'] = 640
-		cams[camera_id]['h'] = 352
-		cams[camera_id]['src'] = 'rtsp://192.168.2.12/12'
-		cams[camera_id]['method'] = 'cv2'
-		cams['debug'] = True
+		conf = {}
+		conf['cameras'] = {}
+		conf['cameras'][camera_id] = {}
+		opts = init_opts(camera_id)
+		conf['cameras'][camera_id] = opts
+		conf['debug'] = True
 		with open(path, 'wb') as f:
-			pickle.dump(cams, f)
+			pickle.dump(conf, f)
 		f.close()
-		return cams
+		return conf
+
 conf = readConf()
 
 def writeConf(data):
@@ -63,33 +81,40 @@ def writeConf(data):
 
 
 
-def init_opts(camera_id):
+def init_opts(camera_id=None):
+	if camera_id is None:
+		camera_id = 0
+	data_dir = os.path.join(os.path.expanduser("~"), '.np', 'nv')
 	conf = readConf()
+	localip = get_local_ip()
 	opts = {}
 	opts['debug'] = True
-	opts['camera_id'] = 0
+	opts['camera_id'] = camera_id
 	opts['confidence_filter'] = 0.5
 	opts['tracker_max_age'] = 300
 	opts['writeOutImg'] = {}
 	opts['writeOutImg']['path'] = {}
-	opts['writeOutImg']['path']['known'] =  '/home/monkey/.np/nv/Recognized Faces'
-	opts['writeOutImg']['path']['unknown'] =  '/home/monkey/.np/nv/Unrecognized Face'
+	opts['writeOutImg']['path']['known'] =  os.path.join(data_dir, 'Recognized Faces')
+	opts['writeOutImg']['path']['unknown'] =  os.path.join(data_dir, 'Unrecognized Face')
 	opts['writeOutImg']['enabled'] = True
 	opts['skip_frames'] = 15
 	opts['status'] = None
-	opts[camera_id] = {}
-	opts[camera_id]['H'] = 352
-	opts[camera_id]['W'] = 640
-	opts[camera_id]['src'] = {}
-	opts[camera_id]['src']['url'] = 'rtsp://192.168.2.12/11'
-	opts[camera_id]['src']['has_auth'] = True
-	opts[camera_id]['src']['user'] = os.path.expanduser("~").split('/home/')[1]
-	opts[camera_id]['has_ptz'] = False
+	opts['src'] = {}
+	src = input("Enter camera source url or device number (blank for None): ")
+	if src is None or src == '':
+		opts['src']['url'] = None
+	else:
+		opts['src']['url'] = src
+	opts['src']['has_auth'] = False
+	opts['src']['user'] = os.path.expanduser("~").split(f"{os.path.sep}home{os.path.sep}")[1]
+	opts['H'] = 352
+	opts['W'] = 640
+	opts['has_ptz'] = False
 	opts['detector'] = {}
 	opts['detector']['METHODS'] = ['object_detection', 'face_recognition']
 	opts['detector']['object_detector'] = {}
-	opts['detector']['object_detector']['prototxt'] =  '/home/monkey/.np/nv/MobileNetSSD_deploy.prototxt'
-	opts['detector']['object_detector']['model'] =  '/home/monkey/.np/nv/MobileNetSSD_deploy.caffemodel'
+	opts['detector']['object_detector']['prototxt'] =  os.path.join(data_dir, 'MobileNetSSD_deploy.prototxt')
+	opts['detector']['object_detector']['model'] =  os.path.join(data_dir, 'MobileNetSSD_deploy.caffemodel')
 	opts['detector']['object_detector']['targets'] =  ['person', 'cat', 'horse', 'truck', 'dog', 'car', 'motorbike']
 	opts['detector']['object_detector']['classes'] =  ['background', 'aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
 	opts['detector']['object_detector']['confidence'] =  0.49
@@ -100,27 +125,33 @@ def init_opts(camera_id):
 	opts['detector']['provider'] = 'dlib'
 	opts['detector']['all_providers'] = ['cv2', 'dlib']
 	opts['detector']['fr_cv2'] = {}
-	opts['detector']['fr_cv2']['dbpath'] =  '/home/monkey/.np/nv/cv2_fr_trained.yml'
-	opts['detector']['fr_cv2']['face_cascade'] =  '/home/monkey/.np/nv/haarcascade_frontalface_default.xml'
+	opts['detector']['fr_cv2']['dbpath'] =  os.path.join(data_dir, 'cv2_fr_trained.yml')
+	opts['detector']['fr_cv2']['face_cascade'] =  os.path.join(data_dir, 'haarcascade_frontalface_default.xml')
+	opts['detector']['fr_cv2']['dataset'] = os.path.join(os.path.expanduser("~"), '.np', 'nv', 'dataset')
 	opts['detector']['fr_dlib'] = {}
 	opts['detector']['fr_dlib']['tolerance'] =  0.55
 	opts['detector']['fr_dlib']['model'] =  'hog'
+	opts['detector']['fr_dlib']['upsamples'] = 1
+	opts['detector']['fr_dlib']['type'] = 'large'
+	opts['detector']['fr_dlib']['passes'] = 1
 	opts['detector']['fd_cv2'] = {}
 	opts['detector']['fd_cv2']['scale_factor'] =  1.1
 	opts['detector']['fd_cv2']['minimum_neighbors'] =  5
-	opts['detector']['fd_cv2']['face_cascade'] =  '/home/monkey/.np/nv/haarcascade_frontalface_default.xml'
+	opts['detector']['fd_cv2']['face_cascade'] =  os.path.join(data_dir, 'haarcascade_frontalface_default.xml')
 	opts['detector']['fd_dlib'] = {}
-	opts['detector']['fd_dlib']['face_cascade'] =  '/home/monkey/.np/nv/haarcascade_frontalface_default.xml'
+	opts['detector']['fd_dlib']['face_cascade'] =  os.path.join(data_dir, 'haarcascade_frontalface_default.xml')
 	opts['detector']['ALL_METHODS'] = ['object_detection', 'face_detection', 'yolov3', 'face_recognition']
 	opts['detector']['scraper'] = {}
-	opts['detector']['scraper']['path_out'] = '/home/monkey/.np/nv/scraped_dataset'
+	opts['detector']['scraper']['path_out'] = os.path.join(data_dir, 'scraped_dataset')
 	opts['port'] = 8080
-	opts['url'] = 'http://192.168.2.2:8080/Camera_0.mjpg'
+	opts['addr'] = localip
+	opts['url'] = f"http://{localip}:{opts['port']}/Camera_{camera_id}.mjpg"
+	opts['addr'] = localip
 	opts['pull_method'] = 'q'
 	opts['FONT'] = 0
 	opts['FONT_SCALE'] = 1
 	opts['ptz'] = {}
-	opts['ptz']['addr'] = '192.168.2.2'
+	opts['ptz']['addr'] = opts['src']['url'].split('://')[1].split('/')[0]
 	opts['ptz']['events'] = True
 	opts['ptz']['tour_wait_low'] = 15
 	opts['ptz']['tour_wait_med'] = 10
@@ -138,35 +169,54 @@ def init_opts(camera_id):
 	opts['ptz']['window'] = {}
 	opts['ptz']['window']['location'] =  (20, 1220)
 	opts['ptz']['window']['size'] =  (400, 400)
+	opts['ptz']['auth'] = {}
+	opts['ptz']['auth']['uses_auth'] = True
+	opts['ptz']['auth']['user'] = os.path.expanduser("~").split(f"{os.path.sep}home{os.path.sep}")[1]
+	opts['maxsize'] = 30
 	return opts
 
-
+def init_camera(camera_id):
+	conf = readConf()
+	if camera_id not in list(cams.keys()):
+		conf['cameras'][camera_id] = {}
+		opts = init_opts(camera_id)
+		conf['cameras'][camera_id] = opts
+		log(f"Camera {camera_id} initialized!", 'info')
+		writeConf(conf)
+		return opts
+	else:
+		log(f"Camera id already exists: {camera_id}", 'warning')
+		return conf['cameras'][camera_id]
 
 def write_opts(opts):
-	camera_id = opts['camera_id']
+	# update options config for camera id
+	conf = readConf()
 	try:
-		optsfile = f"{DATA_DIR}{os.path.sep}ptz_opts_{camera_id}.conf"
-		with open(optsfile, "wb") as f:
-			pickle.dump(opts, f)
-		f.close()
-		log(f"Options file for camera_id {camera_id} written!", 'info')
+		camera_id = opts['camera_id']
+		conf['cameras'][camera_id] = opts
+		writeConf(conf)
 		return True
 	except Exception as e:
-		log(f"Unable to write option config file: {e}", 'error')
+		log(f"Unable to write options to config file: {e}", 'error')
 		return False
 
 
-def read_opts(camera_id):
+def read_opts(camera_id=None):
+	conf = readConf()
+	if camera_id is None:
+		camera_id = 0
 	try:
-		optsfile = f"{DATA_DIR}{os.path.sep}ptz_opts_{camera_id}.conf"
-		with open(optsfile, "rb") as f:
-			opts = pickle.load(f)
-		f.close()
-		log(f"Options file for camera_id {camera_id} read", 'info')
-		return opts
+		if camera_id in list(conf['cameras'].keys()):
+			return conf['cameras'][camera_id]
+		else:
+			log(f"Camera id not found! Initializing  from default...", 'warning')
+			opts = init_camera(camera_id)
 	except Exception as e:
 		log(f"Error: Unable to read opts file! Re-initializing...", 'error')
-		opts = init_opts(camera_id)
-		write_opts(opts)
-		return opts
+		conf['cameras'][camera_id] = init_opts(camera_id)
+		writeConf(conf)
+		return conf['cameras'][camera_id]
+
+
+
 

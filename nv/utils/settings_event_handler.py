@@ -100,7 +100,7 @@ def event_mgr(win, event, opts, values={}, camera_id=0):
 			if m in methods:
 				methods.remove(m)
 		opts['detector']['METHODS'] = methods
-		win.update['-ACTIVE_DETECTION_METHODS-'].update(opts['detector']['METHODS'])
+		win['-ACTIVE_DETECTION_METHODS-'].update(opts['detector']['METHODS'])
 		log(f"Updated active detection methods!", 'info')
 	elif event == 'Add Method':
 		add = win['-ALL_DETECTION_METHODS-'].get()
@@ -109,7 +109,7 @@ def event_mgr(win, event, opts, values={}, camera_id=0):
 			if m not in methods:
 				methods.append(m)
 		opts['detector']['METHODS'] = methods
-		win.update['-ACTIVE_DETECTION_METHODS-'].update(opts['detector']['METHODS'])
+		win['-ACTIVE_DETECTION_METHODS-'].update(opts['detector']['METHODS'])
 		log(f"Updated active detection methods!", 'info')
 	elif event == 'Add Target':
 		add = win['-ALL_DETECTION_TARGETS-'].get()
@@ -118,16 +118,17 @@ def event_mgr(win, event, opts, values={}, camera_id=0):
 			if t not in targets:
 				targets.append(t)
 		opts['detector']['object_detector']['targets'] = targets
-		win.update['-DETECTION_TARGETS-'].update(targets)
+		win['-DETECTION_TARGETS-'].update(targets)
 		log(f"Updated detection targets!", 'info')
 	elif event == 'Remove Target':
-		rm = win['-ALL_DETECTION_TARGETS-'].get()
+		rm = win['-DETECTION_TARGETS-'].get()
+		print("To remove: ", rm)
 		targets = opts['detector']['object_detector']['targets']
 		for t in rm:
 			if t in targets:
 				targets.remove(t)
 		opts['detector']['object_detector']['targets'] = targets
-		win.update['-DETECTION_TARGETS-'].update(targets)
+		win['-DETECTION_TARGETS-'].update(targets)
 		log(f"Updated detection targets!", 'info')
 	elif event == '-DETECTION_PROVIDER-':
 		opts['detector']['provider'] = values[event]
@@ -156,6 +157,9 @@ def event_mgr(win, event, opts, values={}, camera_id=0):
 		key = f"fd_{p}"
 		opts['detector'][key]['face_cascade'] = values[event]
 		log("Updated {p} haar cascade file: {values[event]}", 'info')
+	elif event == '-FR_DLIB_PASSES-':
+		opts['detector']['fr_dlib']['passes'] = values[event]
+		log("Upsamples count set for dlib recognizer: {values[event]}", 'info')
 	elif event == '-FR_DLIB_TOLERANCE-':
 		opts['detector']['fr_dlib']['tolerance'] = values[event]
 		log("Updated dlib recognition tolerance! {values[event]}", 'info')

@@ -53,8 +53,8 @@ def process(opts=None, input_q=None, out_q=None):
 	#src = opts['src']
 	#CLASSES = opts['detector']['object_detector']['classes']
 	#net = cv2.dnn.readNetFromCaffe(opts['detector']['object_detector']['prototxt'] , opts['detector']['object_detector']['model'])
-	W = opts[camera_id]['W']
-	H = opts[camera_id]['H']
+	W = opts['W']
+	H = opts['H']
 	trackers = []
 	trackableObjects = {}
 	totalFrames = 0
@@ -125,7 +125,13 @@ def process(opts=None, input_q=None, out_q=None):
 								name = "Unrecognized Face"
 								ret = det.recognize(frame)
 								if ret is not None:
-									name, recbox, tolerance = ret
+									try:
+										name, recbox, tolerance = ret
+									except Exception as e:
+										log(f"Error: couldn't get info from returned data: {ret}", 'error')
+										name, recbox, tolerance = None, None, None
+									if name is None:
+										name = 'Unknown'
 									log(f"PROCESS_THREAD:{camera_id}::face recognized! Name: {name}", 'info')
 									box = recbox
 									if write_out_img == True:

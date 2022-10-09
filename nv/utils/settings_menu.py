@@ -150,10 +150,12 @@ def settings(section=None):
 		fr_dlib_models = ['hog', 'cnn']
 		settings_fr_dlib_model = [[sg.Text('DLIB Detection Tolerance:'), sg.Input(default_text=opts['detector']['fr_dlib']['tolerance'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-FR_DLIB_TOLERANCE-', expand_x=True), sg.Text('DLIB Recognition Model:'), sg.Listbox(fr_dlib_models, default_values=opts['detector']['fr_dlib']['model'], select_mode='multiple', change_submits=True, enable_events=True, size=(None, None), auto_size_text=True, key='-FACE_RECOGNITION_MODELS-', expand_x=False, expand_y=False)]]
 		settings_fr_cv2_dbpath = [[sg.Text('CV2 Saved Faces database:'), sg.Input(default_text=opts['detector']['fr_cv2']['dbpath'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-FR_CV2_DBPATH-', expand_x=True)]]
+		settings_fr_dlib_passes = [[sg.Text('DLib recognizer passes (upsamples):'), sg.Input(default_text=opts['detector'][fd_provider]['face_cascade'], size=(None, None), change_submits=True, enable_events=True, do_not_clear=True, key='-FR_DLIB_PASSES-', expand_x=True)]]
 		line = settings_scale_factor, settings_minimum_neighbors
 		layout6.append(line)
 		layout6.append(settings_fd_cascade)
 		layout6.append(settings_fr_dlib_model)
+		layout6.append(settings_fr_dlib_passes)
 		layout6.append(settings_fr_cv2_dbpath)
 		buttons = [[sg.Button('Close'), sg.Button('Save'), sg.Button('Restore Defaults')]]
 		layout6.append(buttons)
