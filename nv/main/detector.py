@@ -392,7 +392,11 @@ class detector:
 				pass
 		return out
 
-	def object_detect(self, imgpath):
+	def object_detect(self, imgpath, targets=None, confidence=None):
+		if confidence is not None:
+			self.confidence = confidence
+		if targets is not None:
+			self.targets = targets
 		if type(imgpath) == str:
 			img = cv2.imread(imgpath)
 		else:
